@@ -27,9 +27,15 @@ Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{ve
 
 BuildRequires: gcc
 BuildRequires: gcc-c++
-BuildRequires: java-devel
-BuildRequires: python27-devel
 BuildRequires: python-mesos
+
+%if 0%{?fedora} >= 16
+BuildRequires: java-devel
+BuildRequires: python-devel
+%else
+BuildRequires: java-1.7.0-openjdk-devel
+BuildRequires: python27-devel
+%endif
 
 Requires:      java-1.7.0-openjdk
 
