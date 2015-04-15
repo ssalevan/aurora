@@ -96,11 +96,11 @@ mkdir -p .pants.d/python/eggs/
 # Builds mesos-native and mesos-interface eggs.
 wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
 tar zxvf mesos-%{MESOS_VERSION}.tar.gz
-popd mesos-%{MESOS_VERSION}
+pushd mesos-%{MESOS_VERSION}
 ./configure --disable-java
 make
 find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
-pushd
+popd
 
 # Builds the Aurora scheduler.
 ./gradle-2.3/bin/gradle distZip
