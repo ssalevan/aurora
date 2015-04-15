@@ -80,6 +80,8 @@ export PATH=/usr/python2.7/bin:$PATH
 # Ensures that Gradle finds the RPM-provided Java.
 export JAVA_HOME=/usr
 
+ls
+
 # Builds the Aurora scheduler.
 ./gradlew distZip
 
@@ -183,5 +185,5 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 
 
 %changelog
-* Tue Apr  14 2014 Steve Salevan <steve.salevan@gmail.com>
+* Tue Apr 14 2014 Steve Salevan <steve.salevan@gmail.com>
 - Initial specfile writeup.
