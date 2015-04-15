@@ -28,6 +28,8 @@ Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{ve
 BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: python-mesos
+BuildRequires: unzip
+BuildRequires: wget
 
 %if 0%{?fedora} >= 16
 BuildRequires: java-devel
@@ -80,10 +82,12 @@ export PATH=/usr/python2.7/bin:$PATH
 # Ensures that Gradle finds the RPM-provided Java.
 export JAVA_HOME=/usr
 
-ls
+# Downloads Gradle executable.
+wget https://services.gradle.org/distributions/gradle-2.3-bin.zip
+unzip gradle-2.3-bin.zip
 
 # Builds the Aurora scheduler.
-./gradlew distZip
+gradle distZip
 
 # Builds Aurora client PEX binaries.
 ./pants binary src/main/python/apache/aurora/admin:aurora_admin
