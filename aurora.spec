@@ -10,7 +10,7 @@
 %global MESOS_VERSION 0.21.1
 %endif
 
-if %{?!PEX_BINARIES:1}0
+%if %{?!PEX_BINARIES:1}0
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
 %endif
 
