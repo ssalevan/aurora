@@ -25,21 +25,25 @@ License:       ASL 2.0
 URL:           http://%{name}.apache.org/
 Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{version}.tar.gz
 
+BuildRequires: apr-devel
+BuildRequires: cyrus-sasl-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
-BuildRequires: python-mesos
+BuildRequires: java-devel
+BuildRequires: libcurl-devel
+BuildRequires: patch
+BuildRequires: subversion-devel
 BuildRequires: unzip
 BuildRequires: wget
+BuildRequires: zlib-devel
 
-%if 0%{?fedora} >= 16
-BuildRequires: java-devel
+%if 0%{?fedora} >= 20
 BuildRequires: python-devel
 %else
-BuildRequires: java-1.7.0-openjdk-devel
 BuildRequires: python27-devel
 %endif
 
-Requires:      java-1.7.0-openjdk
+Requires:      java
 
 
 %description
@@ -49,7 +53,7 @@ resource isolation.
 
 
 %package client
-Summary:  A client for scheduling services against the Aurora scheduler
+Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
 Requires: python27
 
@@ -85,6 +89,18 @@ export JAVA_HOME=/usr
 # Downloads Gradle executable.
 wget https://services.gradle.org/distributions/gradle-2.3-bin.zip
 unzip gradle-2.3-bin.zip
+
+# Creates Pants directory where we'll store our native Mesos Python eggs.
+mkdir -p .pants.d/python/eggs/
+
+# Builds mesos-native and mesos-interface eggs.
+wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
+tar zxvf mesos-%{MESOS_VERSION}.tar.gz
+popd mesos-%{MESOS_VERSION}
+./configure --disable-java
+make
+find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
+pushd
 
 # Builds the Aurora scheduler.
 ./gradle-2.3/bin/gradle distZip
