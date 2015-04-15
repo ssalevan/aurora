@@ -87,7 +87,7 @@ wget https://services.gradle.org/distributions/gradle-2.3-bin.zip
 unzip gradle-2.3-bin.zip
 
 # Builds the Aurora scheduler.
-gradle distZip
+./gradle-2.3/bin/gradle distZip
 
 # Builds Aurora client PEX binaries.
 ./pants binary src/main/python/apache/aurora/admin:aurora_admin
