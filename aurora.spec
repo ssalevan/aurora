@@ -27,7 +27,7 @@ Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{ve
 
 BuildRequires: gcc
 BuildRequires: gcc-c++
-BuildRequires: java-1.7.0-openjdk-devel
+BuildRequires: java-devel
 BuildRequires: python27-devel
 BuildRequires: python-mesos
 
