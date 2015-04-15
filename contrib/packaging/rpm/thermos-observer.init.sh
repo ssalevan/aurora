@@ -1,34 +1,33 @@
 #!/bin/bash
 #
-# aurora Starts the Aurora task scheduler for Mesos.
+# thermos-observer Starts the Thermos task observer.
 #
 # chkconfig:   345 55 25
-# description: This script starts the Aurora task scheduler for Apache Mesos, \
-#              used for scheduling and executing long-running services and \
-#              cron jobs.
+# description: This script starts the Thermos task observer, which provides a WebUI for \
+#              viewing the state of tasks launched by the Thermos executor.
 
 ### BEGIN INIT INFO
-# Provides: aurora
+# Provides: thermos-observer
 # Required-Start:
 # Required-Stop:
 # Should-Start:
 # Should-Stop:
 # Default-Start: 3 4 5
 # Default-Stop: 0 1 2 6
-# Short-Description: Starts the Aurora task scheduler for Mesos.
-# Description: Starts the Aurora task scheduler for Mesos.
+# Short-Description: Starts the Thermos task observer.
+# Description: Starts the Thermos task observer.
 ### END INIT INFO
 
 # Source LSB function library.
 . /lib/lsb/init-functions
 
-exec="/usr/bin/aurora-scheduler-startup"
-prog="aurora"
-logdir="/var/log/aurora"
-lockfile="/var/run/aurora.lock"
-pid_file="/var/run/aurora.pid"
+exec="/usr/bin/thermos-observer-startup"
+prog="thermos-observer"
+logdir="/var/log/thermos"
+lockfile="/var/run/thermos-observer.lock"
+pid_file="/var/run/thermos-observer.pid"
 
-stderr_log="${logdir}/aurora.log"
+stderr_log="${logdir}/observer.log"
 
 # Get a sane screen width
 [ -z "${COLUMNS:-}" ] && COLUMNS=80

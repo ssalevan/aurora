@@ -22,4 +22,4 @@ export LIBPROCESS_PORT="${LIBPROCESS_PORT}"
 export LIBPROCESS_IP="${LIBPROCESS_IP}"
 export JAVA_OPTS="${JAVA_OPTS[*]}"
 
-exec /usr/bin/aurora-scheduler "${AURORA_FLAGS[@]}"
+exec /usr/lib/aurora/bin/aurora-scheduler "${AURORA_FLAGS[@]}"
