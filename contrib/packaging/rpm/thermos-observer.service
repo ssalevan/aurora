@@ -1,0 +1,17 @@
+[Unit]
+Description=Thermos Observer
+After=network.target
+Wants=network.target
+
+[Service]
+ExecStart=/usr/bin/thermos-observer-startup
+ExecStop=/usr/bin/killall -s 15 thermos_observer
+ExecReload=/bin/kill -HUP $MAINPID
+User=root
+Group=root
+Restart=always
+RestartSec=20
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target

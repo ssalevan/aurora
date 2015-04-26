@@ -1,0 +1,17 @@
+[Unit]
+Description=Aurora Scheduler
+After=network.target
+Wants=network.target
+
+[Service]
+ExecStart=/usr/bin/aurora-scheduler-startup
+ExecStop=/usr/bin/killall -s 15 aurora
+ExecReload=/bin/kill -HUP $MAINPID
+User=root
+Group=root
+Restart=always
+RestartSec=20
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target

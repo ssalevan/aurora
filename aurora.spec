@@ -2,12 +2,16 @@
 %global AURORA_VERSION 0.8.0
 %endif
 
-%if %{?!MESOS_BASEURL:1}0
-%global MESOS_BASEURL https://archive.apache.org/dist/mesos
-%endif
-
 %if %{?!MESOS_VERSION:1}0
 %global MESOS_VERSION 0.21.1
+%endif
+
+%if %{?!PYTHON_VERSION:1}0
+%global PYTHON_VERSION 2.7.9
+%endif
+
+%if %{?!MESOS_BASEURL:1}0
+%global MESOS_BASEURL https://archive.apache.org/dist/mesos
 %endif
 
 %if %{?!PEX_BINARIES:1}0
@@ -20,29 +24,27 @@ Version:       %{AURORA_VERSION}
 Release:       1%{?dist}
 Summary:       A Mesos framework for scheduling and executing long-running services and cron jobs.
 Group:         Applications/System
-
 License:       ASL 2.0
 URL:           http://%{name}.apache.org/
+
 Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires: apr-devel
+BuildRequires: cmake
 BuildRequires: cyrus-sasl-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
+BuildRequires: glibc-static
 BuildRequires: java-devel
 BuildRequires: libcurl-devel
 BuildRequires: patch
 BuildRequires: subversion-devel
+BuildRequires: tar
 BuildRequires: unzip
 BuildRequires: wget
 BuildRequires: zlib-devel
 
-%if 0%{?fedora} >= 20
-BuildRequires: python-devel
-%else
-BuildRequires: python27-devel
-%endif
-
+Requires:      daemonize
 Requires:      java
 
 
@@ -55,24 +57,32 @@ resource isolation.
 %package client
 Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
-Requires: python27
+
+Requires: python
 
 %description client
-A set of command-line applications used for interacting with the Aurora executor for
-Mesos tasks.
+A set of command-line applications used for interacting with and administering Aurora
+schedulers.
+
 
 %package thermos
 Summary: Mesos executor that executes tasks scheduled by the Aurora scheduler
 Group: Applications/System
+
 Requires: cyrus-sasl-libs
+Requires: daemonize
+Requires: docker
 Requires: mesos
+Requires: python
+%if 0%{?fedora} >= 20
 Requires: mesos-python
-Requires: python27
+%endif
 
 %description thermos
 Thermos a simple process management framework used for orchestrating dependent processes
 within a single Mesos chroot.  It works in tandem with Aurora to ensure that tasks
-scheduled by Aurora are properly executed on Mesos slaves.
+scheduled by it are properly executed on Mesos slaves and provides a Web UI to monitor the
+state of all running tasks.
 
 
 %prep
@@ -93,14 +103,22 @@ unzip gradle-2.3-bin.zip
 # Creates Pants directory where we'll store our native Mesos Python eggs.
 mkdir -p .pants.d/python/eggs/
 
-# Builds mesos-native and mesos-interface eggs.
-wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
-tar zxvf mesos-%{MESOS_VERSION}.tar.gz
-pushd mesos-%{MESOS_VERSION}
-./configure --disable-java
+# Builds a static Python 2.7 interpreter.
+wget https://www.python.org/ftp/python/%{PYTHON_VERSION}/Python-%{PYTHON_VERSION}.tgz
+tar xvzf Python-%{PYTHON_VERSION}.tgz
+pushd Python-%{PYTHON_VERSION}.tgz
+./configure LDFLAGS="-static -static-libgcc -Wl,--no-export-dynamic" CFLAGS="-static" CPPFLAGS="-static"
 make
-find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
 popd
+
+# Builds mesos-native and mesos-interface eggs.
+#wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
+#tar zxvf mesos-%{MESOS_VERSION}.tar.gz
+#pushd mesos-%{MESOS_VERSION}
+#./configure --disable-java
+#make
+#find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
+#popd
 
 # Builds the Aurora scheduler.
 ./gradle-2.3/bin/gradle distZip
