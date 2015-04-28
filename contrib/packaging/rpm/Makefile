@@ -12,7 +12,7 @@ RPM_TOPDIR ?= $(DIST_DIR)
 
 SOURCE ?= $(SOURCE_TARGET)
 
-.PHONY: all nightly_version release_version clean mkdir srpm nightly_srpm release_srpm
+.PHONY: all nightly_version release_version clean mkdir srpm nightly_srpm release_srpm tar_source
 
 all: nightly_srpm
 
@@ -35,11 +35,11 @@ mkdir: clean
 	mkdir -p $(RPM_TOPDIR)/rpmbuild/SOURCES
 	mkdir -p $(RPM_TOPDIR)/rpmbuild/SRPMS
 
-$(SOURCE_TARGET): mkdir
+tar_source: mkdir
 	cd `git rev-parse --show-toplevel` && git archive --format=tar \
-		--prefix=aurora-$(VERSION)/ $(GIT_COMMIT) | gzip > $@
+		--prefix=aurora-$(VERSION)/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET)
 
-srpm: get_source_target $(SOURCE_TARGET)
+srpm: get_source_target tar_source
 	rpmbuild $(RPM_OPTS) \
 	  --define "_topdir $(RPM_TOPDIR)" \
  	  --define "_builddir %{_topdir}/rpmbuild/BUILD" \
