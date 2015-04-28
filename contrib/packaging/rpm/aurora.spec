@@ -103,9 +103,6 @@ state of all running tasks.
 
 
 %build
-# Ensures that Gradle finds the RPM-provided Java.
-export JAVA_HOME=/usr
-
 # Downloads Gradle executable.
 wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
 unzip gradle-%{GRADLE_VERSION}-bin.zip
