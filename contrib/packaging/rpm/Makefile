@@ -6,7 +6,7 @@ DIST_DIR := $(GIT_TOPDIR)/dist
 
 DATETIME := $(shell date +%Y%m%d%H%M)
 
-VERSION := $(shell cat $(GIT_TOPDIR)/.auroraversion)
+VERSION := $(shell cat $(GIT_TOPDIR)/.auroraversion | tr '-' '.')
 
 RPM_TOPDIR ?= $(DIST_DIR)
 
@@ -17,7 +17,7 @@ SOURCE ?= $(SOURCE_TARGET)
 all: nightly_srpm
 
 nightly_version:
-	$(eval VERSION := $(VERSION)-$(DATETIME).$(GIT_SHA))
+	$(eval VERSION := $(VERSION).$(DATETIME).$(GIT_SHA))
 
 release_version:
 	$(eval VERSION := $(VERSION))
