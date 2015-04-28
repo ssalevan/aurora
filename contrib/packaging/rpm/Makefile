@@ -23,7 +23,7 @@ release_version:
 	$(eval VERSION := $(VERSION))
 
 get_source_target:
-	$(eval SOURCE_TARGET := $(RPM_TOPDIR)/SOURCES/aurora-$(VERSION).tar.gz)
+	$(eval SOURCE_TARGET := $(RPM_TOPDIR)/rpmbuild/SOURCES/aurora-$(VERSION).tar.gz)
 
 clean:
 	rm -rf $(RPM_TOPDIR)/rpmbuild
