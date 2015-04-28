@@ -1,21 +1,30 @@
+# Overridable variables;
 %if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
 %endif
-
 %if %{?!GRADLE_VERSION:1}0
 %global GRADLE_VERSION 2.3
 %endif
-
+%if %{?!GRADLE_BASEURL:1}0
+%global GRADLE_BASEURL https://services.gradle.org/distributions
+%endif
 %if %{?!MESOS_VERSION:1}0
 %global MESOS_VERSION 0.21.1
 %endif
-
 %if %{?!MESOS_BASEURL:1}0
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
 %endif
-
 %if %{?!PEX_BINARIES:1}0
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
+%endif
+
+# If no explicit Python version was supplied, assumes we're using distribution defaults.
+%if %{?!PYTHON_VERSION:1}0
+%if 0%{?fedora}
+%global PYTHON_VERSION 2.7
+%else
+%global PYTHON_VERSION 2.6
+%endif
 %endif
 
 
@@ -38,6 +47,7 @@ BuildRequires: glibc-static
 BuildRequires: java-devel
 BuildRequires: libcurl-devel
 BuildRequires: patch
+BuildRequires: python-devel == %{PYTHON_VERSION}
 BuildRequires: subversion-devel
 BuildRequires: tar
 BuildRequires: unzip
@@ -58,7 +68,7 @@ resource isolation.
 Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
 
-Requires: python
+Requires: python == %{PYTHON_VERSION}
 
 %description client
 A set of command-line applications used for interacting with and administering Aurora
@@ -73,7 +83,7 @@ Requires: cyrus-sasl-libs
 Requires: daemonize
 Requires: docker
 Requires: mesos
-Requires: python
+Requires: python == %{PYTHON_VERSION}
 %if 0%{?fedora} >= 20
 Requires: mesos-python
 %endif
@@ -94,13 +104,14 @@ state of all running tasks.
 export JAVA_HOME=/usr
 
 # Downloads Gradle executable.
-wget https://services.gradle.org/distributions/gradle-%{GRADLE_VERSION}-bin.zip
+wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
 unzip gradle-%{GRADLE_VERSION}-bin.zip
 
 # Creates Pants directory where we'll store our native Mesos Python eggs.
 mkdir -p .pants.d/python/eggs/
 
-# Builds mesos-native and mesos-interface eggs.
+# Builds mesos-native and mesos-interface eggs if not currently packaged.
+%if 0%{?fedora} < 20
 wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
 tar xvzf mesos-%{MESOS_VERSION}.tar.gz
 pushd mesos-%{MESOS_VERSION}
@@ -108,6 +119,7 @@ pushd mesos-%{MESOS_VERSION}
 make
 find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
 popd
+%endif
 
 # Builds the Aurora scheduler.
 ./gradle-%{GRADLE_VERSION}/bin/gradle distZip
@@ -192,9 +204,9 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 %{_prefix}/lib/%{name}/bin/*
 %{_prefix}/lib/%{name}/lib/*
 %if 0%{?fedora}
-%{_sysconfdir}/init.d/%{name}
-%else
 %{_sysconfdir}/systemd/system/%{name}.service
+%else
+%{_sysconfdir}/init.d/%{name}
 %endif
 %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
 %config(noreplace) %{_sysconfdir}/sysconfig/%{name}
@@ -216,9 +228,13 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 %{_bindir}/thermos-observer-startup
 %{_localstatedir}/log/thermos
 %{_localstatedir}/run/thermos
+%if 0%{?fedora}
+%{_sysconfdir}/systemd/system/thermos-observer.service
+%else
 %{_sysconfdir}/init.d/thermos-observer
+%endif
 %config(noreplace) %{_sysconfdir}/logrotate.d/thermos-observer
-%config(noreplace) %{_sysconfdir}/sysconfig/%{name}
+%config(noreplace) %{_sysconfdir}/sysconfig/thermos-observer
 
 
 %changelog
