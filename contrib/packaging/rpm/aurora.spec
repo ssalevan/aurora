@@ -2,12 +2,12 @@
 %global AURORA_VERSION 0.8.0
 %endif
 
-%if %{?!MESOS_VERSION:1}0
-%global MESOS_VERSION 0.21.1
+%if %{?!GRADLE_VERSION:1}0
+%global GRADLE_VERSION 2.3
 %endif
 
-%if %{?!PYTHON_VERSION:1}0
-%global PYTHON_VERSION 2.7.9
+%if %{?!MESOS_VERSION:1}0
+%global MESOS_VERSION 0.21.1
 %endif
 
 %if %{?!MESOS_BASEURL:1}0
@@ -25,7 +25,7 @@ Release:       1%{?dist}
 Summary:       A Mesos framework for scheduling and executing long-running services and cron jobs.
 Group:         Applications/System
 License:       ASL 2.0
-URL:           http://%{name}.apache.org/
+URL:           https://%{name}.apache.org/
 
 Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{version}.tar.gz
 
@@ -90,38 +90,27 @@ state of all running tasks.
 
 
 %build
-# Preferences Python 2.7 over the system Python.
-export PATH=/usr/python2.7/bin:$PATH
-
 # Ensures that Gradle finds the RPM-provided Java.
 export JAVA_HOME=/usr
 
 # Downloads Gradle executable.
-wget https://services.gradle.org/distributions/gradle-2.3-bin.zip
-unzip gradle-2.3-bin.zip
+wget https://services.gradle.org/distributions/gradle-%{GRADLE_VERSION}-bin.zip
+unzip gradle-%{GRADLE_VERSION}-bin.zip
 
 # Creates Pants directory where we'll store our native Mesos Python eggs.
 mkdir -p .pants.d/python/eggs/
 
-# Builds a static Python 2.7 interpreter.
-wget https://www.python.org/ftp/python/%{PYTHON_VERSION}/Python-%{PYTHON_VERSION}.tgz
-tar xvzf Python-%{PYTHON_VERSION}.tgz
-pushd Python-%{PYTHON_VERSION}.tgz
-./configure LDFLAGS="-static -static-libgcc -Wl,--no-export-dynamic" CFLAGS="-static" CPPFLAGS="-static"
+# Builds mesos-native and mesos-interface eggs.
+wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
+tar xvzf mesos-%{MESOS_VERSION}.tar.gz
+pushd mesos-%{MESOS_VERSION}
+./configure --disable-java
 make
+find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
 popd
 
-# Builds mesos-native and mesos-interface eggs.
-#wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
-#tar zxvf mesos-%{MESOS_VERSION}.tar.gz
-#pushd mesos-%{MESOS_VERSION}
-#./configure --disable-java
-#make
-#find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
-#popd
-
 # Builds the Aurora scheduler.
-./gradle-2.3/bin/gradle distZip
+./gradle-%{GRADLE_VERSION}/bin/gradle distZip
 
 # Builds Aurora client PEX binaries.
 ./pants binary src/main/python/apache/aurora/admin:aurora_admin
@@ -158,6 +147,7 @@ mkdir -p %{buildroot}%{_localstatedir}/log/%{name}
 mkdir -p %{buildroot}%{_localstatedir}/log/thermos-observer
 mkdir -p %{buildroot}%{_sysconfdir}/%{name}
 mkdir -p %{buildroot}%{_sysconfdir}/init.d
+mkdir -p %{buildroot}%{_sysconfdir}/systemd/system
 mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 
@@ -173,8 +163,13 @@ for pex_binary in %{PEX_BINARIES}; do
 done
 
 # Installs all support scripting.
+%if 0%{?fedora}
+install -m 644 contrib/packaging/rpm/%{name}.service %{buildroot}%{_sysconfdir}/systemd/system/%{name}.service
+install -m 644 contrib/packaging/rpm/thermos-observer.service %{buildroot}%{_sysconfdir}/systemd/system/thermos-observer.service
+%else
 install -m 755 contrib/packaging/rpm/%{name}.init.sh %{buildroot}%{_sysconfdir}/init.d/%{name}
 install -m 755 contrib/packaging/rpm/thermos-observer.init.sh %{buildroot}%{_sysconfdir}/init.d/thermos-observer
+%endif
 
 install -m 755 contrib/packaging/rpm/%{name}.startup.sh %{buildroot}%{_bindir}/%{name}-scheduler-startup
 install -m 755 contrib/packaging/rpm/thermos-observer.startup.sh %{buildroot}%{_bindir}/thermos-observer-startup
@@ -196,7 +191,11 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 %{_localstatedir}/log/%{name}
 %{_prefix}/lib/%{name}/bin/*
 %{_prefix}/lib/%{name}/lib/*
+%if 0%{?fedora}
 %{_sysconfdir}/init.d/%{name}
+%else
+%{_sysconfdir}/systemd/system/%{name}.service
+%endif
 %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
 %config(noreplace) %{_sysconfdir}/sysconfig/%{name}
 
