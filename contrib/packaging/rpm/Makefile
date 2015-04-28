@@ -1,14 +1,13 @@
-GIT_COMMIT ?= HEAD
-
 GIT_TOPDIR := $(shell git rev-parse --show-toplevel)
 DIST_DIR := $(GIT_TOPDIR)/dist
-
-RPM_TOPDIR := $(DIST_DIR)
 
 DATETIME := $(shell date +%Y%m%d%H%M)
 GIT_SHA := $(shell git rev-parse --short $(GIT_COMMIT))
 
 VERSION := $(shell cat $(GIT_TOPDIR)/.auroraversion)
+
+GIT_COMMIT ?= HEAD
+RPM_TOPDIR ?= $(DIST_DIR)
 
 SOURCE_TARGET := $(RPM_TOPDIR)/SOURCES/aurora-$(VERSION).tar.gz
 SOURCE ?= $(SOURCE_TARGET)

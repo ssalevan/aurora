@@ -2,29 +2,26 @@
 %if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
 %endif
-%if %{?!GRADLE_VERSION:1}0
-%global GRADLE_VERSION 2.3
-%endif
 %if %{?!GRADLE_BASEURL:1}0
 %global GRADLE_BASEURL https://services.gradle.org/distributions
 %endif
-%if %{?!MESOS_VERSION:1}0
-%global MESOS_VERSION 0.21.1
+%if %{?!GRADLE_VERSION:1}0
+%global GRADLE_VERSION 2.3
+%endif
+%if %{?!JAVA_VERSION:!}0
+%global JAVA_VERSION 1.7.0
 %endif
 %if %{?!MESOS_BASEURL:1}0
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
 %endif
+%if %{?!MESOS_VERSION:1}0
+%global MESOS_VERSION 0.21.1
+%endif
 %if %{?!PEX_BINARIES:1}0
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
 %endif
-
-# If no explicit Python version was supplied, assumes we're using distribution defaults.
 %if %{?!PYTHON_VERSION:1}0
-%if 0%{?fedora}
-%global PYTHON_VERSION 2.7
-%else
-%global PYTHON_VERSION 2.6
-%endif
+%global PYTHON_VERSION 1.7
 %endif
 
 
@@ -44,10 +41,10 @@ BuildRequires: cyrus-sasl-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: glibc-static
-BuildRequires: java-devel
+BuildRequires: java-devel = %{JAVA_VERSION}
 BuildRequires: libcurl-devel
 BuildRequires: patch
-BuildRequires: python-devel == %{PYTHON_VERSION}
+BuildRequires: python-devel = %{PYTHON_VERSION}
 BuildRequires: subversion-devel
 BuildRequires: tar
 BuildRequires: unzip
@@ -55,7 +52,7 @@ BuildRequires: wget
 BuildRequires: zlib-devel
 
 Requires:      daemonize
-Requires:      java
+Requires:      java = %{JAVA_VERSION}
 
 
 %description
@@ -68,7 +65,7 @@ resource isolation.
 Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
 
-Requires: python == %{PYTHON_VERSION}
+Requires: python = %{PYTHON_VERSION}
 
 %description client
 A set of command-line applications used for interacting with and administering Aurora
@@ -81,9 +78,15 @@ Group: Applications/System
 
 Requires: cyrus-sasl-libs
 Requires: daemonize
+%ifarch x86_64
+%if 0%{?fedora} >= 20
+Requires: docker-io
+%else
 Requires: docker
+%endif
+%endif
 Requires: mesos
-Requires: python == %{PYTHON_VERSION}
+Requires: python = %{PYTHON_VERSION}
 %if 0%{?fedora} >= 20
 Requires: mesos-python
 %endif
@@ -117,7 +120,7 @@ tar xvzf mesos-%{MESOS_VERSION}.tar.gz
 pushd mesos-%{MESOS_VERSION}
 ./configure --disable-java
 make
-find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \\;
+find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
 popd
 %endif
 
@@ -193,6 +196,27 @@ install -m 644 contrib/packaging/rpm/%{name}.logrotate %{buildroot}%{_sysconfdir
 install -m 644 contrib/packaging/rpm/thermos-observer.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/thermos-observer
 
 install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/clusters.json
+
+
+# Pre/post installation scripts:
+%post
+%systemd_post aurora.service
+
+%preun
+%systemd_preun aurora.service
+
+%postun
+%systemd_postun_with_restart aurora.service
+
+
+%post thermos
+%systemd_post thermos-observer.service
+
+%preun thermos
+%systemd_preun thermos-observer.service
+
+%postun thermos
+%systemd_postun_with_restart thermos-observer.service
 
 
 %files
