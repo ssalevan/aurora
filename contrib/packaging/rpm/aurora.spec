@@ -1,26 +1,26 @@
 # Overridable variables;
-%if 0%{?!AURORA_VERSION:1}
+%if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
 %endif
-%if 0%{?!GRADLE_BASEURL:1}
+%if %{?!GRADLE_BASEURL:1}0
 %global GRADLE_BASEURL https://services.gradle.org/distributions
 %endif
-%if 0%{?!GRADLE_VERSION:1}
+%if %{?!GRADLE_VERSION:1}0
 %global GRADLE_VERSION 2.3
 %endif
-%if 0%{?!JAVA_VERSION:!}
+%if %{?!JAVA_VERSION:!}0
 %global JAVA_VERSION 1.7.0
 %endif
-%if 0%{?!MESOS_BASEURL:1}
+%if %{?!MESOS_BASEURL:1}0
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
 %endif
-%if 0%{?!MESOS_VERSION:1}
+%if %{?!MESOS_VERSION:1}0
 %global MESOS_VERSION 0.21.1
 %endif
-%if 0%{?!PEX_BINARIES:1}
+%if %{?!PEX_BINARIES:1}0
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
 %endif
-%if 0%{?!PYTHON_VERSION:1}
+%if %{?!PYTHON_VERSION:1}0
 %global PYTHON_VERSION 1.7
 %endif
 
@@ -99,7 +99,7 @@ state of all running tasks.
 
 
 %prep
-%setup -q -n %{name}-%{AURORA_VERSION}
+%setup -q -n %{name}
 
 
 %build

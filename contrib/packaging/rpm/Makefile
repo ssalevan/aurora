@@ -37,7 +37,7 @@ mkdir: clean
 
 tar_source: mkdir
 	cd `git rev-parse --show-toplevel` && git archive --format=tar \
-		--prefix=aurora-$(VERSION)/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET)
+		--prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET)
 
 srpm: get_source_target tar_source
 	rpmbuild $(RPM_OPTS) \
