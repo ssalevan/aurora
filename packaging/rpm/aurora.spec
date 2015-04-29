@@ -43,7 +43,7 @@ BuildRequires: glibc-static
 BuildRequires: java-%{JAVA_VERSION}-openjdk-devel
 BuildRequires: libcurl-devel
 BuildRequires: patch
-%if 0%{?rhel} < 7
+%if 0%{?rhel} && 0%{?rhel} < 7
 BuildRequires: python27
 BuildRequires: python27-scldevel
 BuildRequires: scl-utils
@@ -71,7 +71,12 @@ resource isolation.
 Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
 
+%if 0%{?rhel} && 0%{?rhel} < 6
+Requires: python27
+Requires: centos-release-SCL
+%else
 Requires: python
+%endif
 
 %description client
 A set of command-line applications used for interacting with and administering Aurora
@@ -92,7 +97,12 @@ Requires: docker
 %endif
 %endif
 Requires: mesos
+%if 0%{?rhel} && 0%{?rhel} < 6
+Requires: python27
+Requires: centos-release-SCL
+%else
 Requires: python
+%endif
 %if 0%{?fedora} >= 20
 Requires: mesos-python
 %endif
@@ -110,7 +120,7 @@ state of all running tasks.
 
 %build
 # Preferences SCL-installed Python 2.7 if we're building on EL6.
-%if 0%{?rhel} < 7
+%if 0%{?rhel} && 0%{?rhel} < 7
 export PATH=/opt/rh/python27/root/usr/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/opt/rh/python27/root/usr/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 export MANPATH=/opt/rh/python27/root/usr/share/man:${MANPATH}
@@ -121,8 +131,8 @@ export PKG_CONFIG_PATH=/opt/rh/python27/root/usr/lib64/pkgconfig${PKG_CONFIG_PAT
 %endif
 
 # Downloads Gradle executable.
-wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
-unzip gradle-%{GRADLE_VERSION}-bin.zip
+#wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
+#unzip gradle-%{GRADLE_VERSION}-bin.zip
 
 # Creates Pants directory where we'll store our native Mesos Python eggs.
 mkdir -p .pants.d/python/eggs/
@@ -139,7 +149,7 @@ mkdir -p .pants.d/python/eggs/
 #%endif
 
 # Builds the Aurora scheduler.
-./gradle-%{GRADLE_VERSION}/bin/gradle distZip
+#./gradle-%{GRADLE_VERSION}/bin/gradle distZip
 
 # Builds Aurora client PEX binaries.
 ./pants binary src/main/python/apache/aurora/admin:aurora_admin
