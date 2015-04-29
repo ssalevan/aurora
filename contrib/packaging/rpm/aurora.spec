@@ -1,26 +1,26 @@
 # Overridable variables;
-%if %{?!AURORA_VERSION:1}0
+%if 0%{?!AURORA_VERSION:1}
 %global AURORA_VERSION 0.8.0
 %endif
-%if %{?!GRADLE_BASEURL:1}0
+%if 0%{?!GRADLE_BASEURL:1}
 %global GRADLE_BASEURL https://services.gradle.org/distributions
 %endif
-%if %{?!GRADLE_VERSION:1}0
+%if 0%{?!GRADLE_VERSION:1}
 %global GRADLE_VERSION 2.3
 %endif
-%if %{?!JAVA_VERSION:!}0
+%if 0%{?!JAVA_VERSION:!}
 %global JAVA_VERSION 1.7.0
 %endif
-%if %{?!MESOS_BASEURL:1}0
+%if 0%{?!MESOS_BASEURL:1}
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
 %endif
-%if %{?!MESOS_VERSION:1}0
+%if 0%{?!MESOS_VERSION:1}
 %global MESOS_VERSION 0.21.1
 %endif
-%if %{?!PEX_BINARIES:1}0
+%if 0%{?!PEX_BINARIES:1}
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
 %endif
-%if %{?!PYTHON_VERSION:1}0
+%if 0%{?!PYTHON_VERSION:1}
 %global PYTHON_VERSION 1.7
 %endif
 
@@ -175,7 +175,7 @@ for pex_binary in %{PEX_BINARIES}; do
 done
 
 # Installs all support scripting.
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel} > 6
 install -m 644 contrib/packaging/rpm/%{name}.service %{buildroot}%{_sysconfdir}/systemd/system/%{name}.service
 install -m 644 contrib/packaging/rpm/thermos-observer.service %{buildroot}%{_sysconfdir}/systemd/system/thermos-observer.service
 %else
@@ -197,23 +197,45 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 
 # Pre/post installation scripts:
 %post
+%if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_post aurora.service
+%else
+/sbin/chkconfig --add %{name}
+%endif
 
 %preun
+%if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_preun aurora.service
+%else
+/sbin/service aurora stop >/dev/null 2>&1
+/sbin/chkconfig --del %{name}
+%endif
 
 %postun
-%systemd_postun_with_restart aurora.service
+%if 0%{?fedora} || 0%{?rhel} > 6
+%systemd_postun_with_restart %{name}.service
+%endif
 
 
 %post thermos
+%if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_post thermos-observer.service
+%else
+/sbin/chkconfig --add thermos-observer
+%endif
 
 %preun thermos
+%if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_preun thermos-observer.service
+%else
+/sbin/service thermos-observer stop >/dev/null 2>&1
+/sbin/chkconfig --del thermos-observer
+%endif
 
 %postun thermos
+%if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_postun_with_restart thermos-observer.service
+%endif
 
 
 %files
@@ -224,7 +246,7 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 %{_localstatedir}/log/%{name}
 %{_prefix}/lib/%{name}/bin/*
 %{_prefix}/lib/%{name}/lib/*
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel} > 6
 %{_sysconfdir}/systemd/system/%{name}.service
 %else
 %{_sysconfdir}/init.d/%{name}
@@ -249,7 +271,7 @@ install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{
 %{_bindir}/thermos-observer-startup
 %{_localstatedir}/log/thermos
 %{_localstatedir}/run/thermos
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel} > 6
 %{_sysconfdir}/systemd/system/thermos-observer.service
 %else
 %{_sysconfdir}/init.d/thermos-observer
