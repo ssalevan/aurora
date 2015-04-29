@@ -99,7 +99,7 @@ state of all running tasks.
 
 
 %prep
-%setup -q -n %{name}-%{version}
+%setup -q -n %{name}-%{AURORA_VERSION}
 
 
 %build
