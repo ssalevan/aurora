@@ -1,8 +1,6 @@
 # Overridable variables;
 %if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
-%else
-%global AURORA_VERSION %{AURORA_VERSION}
 %endif
 %if %{?!GRADLE_BASEURL:1}0
 %global GRADLE_BASEURL https://services.gradle.org/distributions
@@ -11,7 +9,7 @@
 %global GRADLE_VERSION 2.3
 %endif
 %if %{?!JAVA_VERSION:!}0
-%global JAVA_VERSION 1.7
+%global JAVA_VERSION 1.7.0
 %endif
 %if %{?!MESOS_BASEURL:1}0
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
@@ -23,7 +21,7 @@
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
 %endif
 %if %{?!PYTHON_VERSION:1}0
-%global PYTHON_VERSION 1.7
+%global PYTHON_VERSION 2.7
 %endif
 
 
@@ -38,15 +36,21 @@ URL:           https://%{name}.apache.org/
 Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}.tar.gz
 
 BuildRequires: apr-devel
-BuildRequires: cmake
 BuildRequires: cyrus-sasl-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: glibc-static
-BuildRequires: java-%{JAVA_VERSION}-openjdk
+BuildRequires: java-%{JAVA_VERSION}-openjdk-devel
 BuildRequires: libcurl-devel
 BuildRequires: patch
-BuildRequires: python-devel = %{PYTHON_VERSION}
+%if 0%{?rhel} < 7
+BuildRequires: python27
+BuildRequires: python27-scldevel
+BuildRequires: scl-utils
+%else
+BuildRequires: python
+BuildRequires: python-devel
+%endif
 BuildRequires: subversion-devel
 BuildRequires: tar
 BuildRequires: unzip
@@ -67,7 +71,7 @@ resource isolation.
 Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
 
-Requires: python = %{PYTHON_VERSION}
+Requires: python
 
 %description client
 A set of command-line applications used for interacting with and administering Aurora
@@ -88,7 +92,7 @@ Requires: docker
 %endif
 %endif
 Requires: mesos
-Requires: python = %{PYTHON_VERSION}
+Requires: python
 %if 0%{?fedora} >= 20
 Requires: mesos-python
 %endif
@@ -105,6 +109,17 @@ state of all running tasks.
 
 
 %build
+# Preferences SCL-installed Python 2.7 if we're building on EL6.
+%if 0%{?rhel} < 7
+export PATH=/opt/rh/python27/root/usr/bin${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/opt/rh/python27/root/usr/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export MANPATH=/opt/rh/python27/root/usr/share/man:${MANPATH}
+# For systemtap
+export XDG_DATA_DIRS=/opt/rh/python27/root/usr/share${XDG_DATA_DIRS:+:${XDG_DATA_DIRS}}
+# For pkg-config
+export PKG_CONFIG_PATH=/opt/rh/python27/root/usr/lib64/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}
+%endif
+
 # Downloads Gradle executable.
 wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
 unzip gradle-%{GRADLE_VERSION}-bin.zip
@@ -113,15 +128,15 @@ unzip gradle-%{GRADLE_VERSION}-bin.zip
 mkdir -p .pants.d/python/eggs/
 
 # Builds mesos-native and mesos-interface eggs if not currently packaged.
-%if 0%{?fedora} < 20
-wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
-tar xvzf mesos-%{MESOS_VERSION}.tar.gz
-pushd mesos-%{MESOS_VERSION}
-./configure --disable-java
-make
-find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
-popd
-%endif
+#%if 0%{?fedora} < 20
+#wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
+#tar xvzf mesos-%{MESOS_VERSION}.tar.gz
+#pushd mesos-%{MESOS_VERSION}
+#./configure --disable-java
+#make
+#find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
+#popd
+#%endif
 
 # Builds the Aurora scheduler.
 ./gradle-%{GRADLE_VERSION}/bin/gradle distZip
