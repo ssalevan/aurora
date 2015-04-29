@@ -1,6 +1,8 @@
 # Overridable variables;
 %if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
+%else
+%global AURORA_VERSION %{AURORA_VERSION}
 %endif
 %if %{?!GRADLE_BASEURL:1}0
 %global GRADLE_BASEURL https://services.gradle.org/distributions
@@ -9,7 +11,7 @@
 %global GRADLE_VERSION 2.3
 %endif
 %if %{?!JAVA_VERSION:!}0
-%global JAVA_VERSION 1.7.0
+%global JAVA_VERSION 1.7
 %endif
 %if %{?!MESOS_BASEURL:1}0
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
@@ -33,7 +35,7 @@ Group:         Applications/System
 License:       ASL 2.0
 URL:           https://%{name}.apache.org/
 
-Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}-%{version}.tar.gz
+Source0:       https://github.com/apache/%{name}/archive/%{version}/%{name}.tar.gz
 
 BuildRequires: apr-devel
 BuildRequires: cmake
@@ -41,7 +43,7 @@ BuildRequires: cyrus-sasl-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: glibc-static
-BuildRequires: java-devel = %{JAVA_VERSION}
+BuildRequires: java-%{JAVA_VERSION}-openjdk
 BuildRequires: libcurl-devel
 BuildRequires: patch
 BuildRequires: python-devel = %{PYTHON_VERSION}
@@ -52,7 +54,7 @@ BuildRequires: wget
 BuildRequires: zlib-devel
 
 Requires:      daemonize
-Requires:      java = %{JAVA_VERSION}
+Requires:      java-%{JAVA_VERSION}-openjdk
 
 
 %description
@@ -99,7 +101,7 @@ state of all running tasks.
 
 
 %prep
-%setup -q -n %{name}
+%setup -n %{name}
 
 
 %build
