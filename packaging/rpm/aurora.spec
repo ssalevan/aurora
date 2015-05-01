@@ -234,16 +234,16 @@ install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/cl
 # Pre/post installation scripts:
 %post
 %if 0%{?fedora} || 0%{?rhel} > 6
-%systemd_post aurora.service
+%systemd_post %{name}.service
 %else
 /sbin/chkconfig --add %{name}
 %endif
 
 %preun
 %if 0%{?fedora} || 0%{?rhel} > 6
-%systemd_preun aurora.service
+%systemd_preun %{name}.service
 %else
-/sbin/service aurora stop >/dev/null 2>&1
+/sbin/service %{name} stop >/dev/null 2>&1
 /sbin/chkconfig --del %{name}
 %endif
 
@@ -317,5 +317,5 @@ install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/cl
 
 
 %changelog
-* Tue Apr 14 2014 Steve Salevan <steve.salevan@gmail.com>
+* Tue Apr 14 2015 Steve Salevan <steve.salevan@gmail.com>
 - Initial specfile writeup.
