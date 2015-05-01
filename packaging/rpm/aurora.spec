@@ -39,14 +39,13 @@ BuildRequires: apr-devel
 BuildRequires: cyrus-sasl-devel
 BuildRequires: gcc
 BuildRequires: gcc-c++
-BuildRequires: glibc-static
+BuildRequires: git
 BuildRequires: java-%{JAVA_VERSION}-openjdk-devel
 BuildRequires: libcurl-devel
 BuildRequires: patch
 %if 0%{?rhel} && 0%{?rhel} < 7
 BuildRequires: python27
 BuildRequires: python27-scldevel
-BuildRequires: scl-utils
 %else
 BuildRequires: python
 BuildRequires: python-devel
@@ -99,7 +98,6 @@ Requires: docker
 Requires: mesos
 %if 0%{?rhel} && 0%{?rhel} < 6
 Requires: python27
-Requires: centos-release-SCL
 %else
 Requires: python
 %endif
@@ -131,25 +129,25 @@ export PKG_CONFIG_PATH=/opt/rh/python27/root/usr/lib64/pkgconfig${PKG_CONFIG_PAT
 %endif
 
 # Downloads Gradle executable.
-#wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
-#unzip gradle-%{GRADLE_VERSION}-bin.zip
+wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
+unzip gradle-%{GRADLE_VERSION}-bin.zip
 
 # Creates Pants directory where we'll store our native Mesos Python eggs.
 mkdir -p .pants.d/python/eggs/
 
 # Builds mesos-native and mesos-interface eggs if not currently packaged.
-#%if 0%{?fedora} < 20
-#wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
-#tar xvzf mesos-%{MESOS_VERSION}.tar.gz
-#pushd mesos-%{MESOS_VERSION}
-#./configure --disable-java
-#make
-#find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
-#popd
-#%endif
+%if 0%{?fedora} < 20
+wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
+tar xvzf mesos-%{MESOS_VERSION}.tar.gz
+pushd mesos-%{MESOS_VERSION}
+./configure --disable-java
+make
+find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
+popd
+%endif
 
 # Builds the Aurora scheduler.
-#./gradle-%{GRADLE_VERSION}/bin/gradle distZip
+./gradle-%{GRADLE_VERSION}/bin/gradle distZip
 
 # Builds Aurora client PEX binaries.
 ./pants binary src/main/python/apache/aurora/admin:aurora_admin
@@ -158,8 +156,9 @@ mkdir -p .pants.d/python/eggs/
 # Builds Aurora Thermos and GC executor PEX binaries.
 ./pants binary src/main/python/apache/aurora/executor/bin:gc_executor
 ./pants binary src/main/python/apache/aurora/executor/bin:thermos_executor
-./pants binary src/main/python/apache/aurora/executor/bin:thermos_runner
-./pants binary src/main/python/apache/thermos/observer/bin:thermos_observer
+./pants binary src/main/python/apache/thermos/bin:thermos
+./pants binary src/main/python/apache/thermos/bin:thermos_ckpt
+./pants binary src/main/python/apache/thermos/bin:thermos_runner
 
 # Packages the Thermos runner within the Thermos executor.
 python <<EOF
@@ -169,8 +168,6 @@ with contextlib.closing(zipfile.ZipFile('dist/thermos_executor.pex', 'a')) as zf
   zf.writestr('apache/aurora/executor/resources/__init__.py', '')
   zf.write('dist/thermos_runner.pex', 'apache/aurora/executor/resources/thermos_runner.pex')
 EOF
-
-chmod +x ./dist/*.pex
 
 
 %install
@@ -190,7 +187,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/systemd/system
 mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 
-# Installs the Aurora scheduler that has been built into /usr.
+# Installs the Aurora scheduler that was just built into /usr/lib/aurora.
 unzip dist/distributions/aurora-scheduler-*.zip -d %{_prefix}/lib/%{name}
 
 # Removes unnecessary BAT file.
@@ -203,23 +200,23 @@ done
 
 # Installs all support scripting.
 %if 0%{?fedora} || 0%{?rhel} > 6
-install -m 644 contrib/packaging/rpm/%{name}.service %{buildroot}%{_sysconfdir}/systemd/system/%{name}.service
-install -m 644 contrib/packaging/rpm/thermos-observer.service %{buildroot}%{_sysconfdir}/systemd/system/thermos-observer.service
+install -m 644 packaging/rpm/%{name}.service %{buildroot}%{_sysconfdir}/systemd/system/%{name}.service
+install -m 644 packaging/rpm/thermos-observer.service %{buildroot}%{_sysconfdir}/systemd/system/thermos-observer.service
 %else
-install -m 755 contrib/packaging/rpm/%{name}.init.sh %{buildroot}%{_sysconfdir}/init.d/%{name}
-install -m 755 contrib/packaging/rpm/thermos-observer.init.sh %{buildroot}%{_sysconfdir}/init.d/thermos-observer
+install -m 755 packaging/rpm/%{name}.init.sh %{buildroot}%{_sysconfdir}/init.d/%{name}
+install -m 755 packaging/rpm/thermos-observer.init.sh %{buildroot}%{_sysconfdir}/init.d/thermos-observer
 %endif
 
-install -m 755 contrib/packaging/rpm/%{name}.startup.sh %{buildroot}%{_bindir}/%{name}-scheduler-startup
-install -m 755 contrib/packaging/rpm/thermos-observer.startup.sh %{buildroot}%{_bindir}/thermos-observer-startup
+install -m 755 packaging/rpm/%{name}.startup.sh %{buildroot}%{_bindir}/%{name}-scheduler-startup
+install -m 755 packaging/rpm/thermos-observer.startup.sh %{buildroot}%{_bindir}/thermos-observer-startup
 
-install -m 644 contrib/packaging/rpm/%{name}.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/%{name}
-install -m 644 contrib/packaging/rpm/thermos-observer.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/thermos-observer
+install -m 644 packaging/rpm/%{name}.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/%{name}
+install -m 644 packaging/rpm/thermos-observer.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/thermos-observer
 
-install -m 644 contrib/packaging/rpm/%{name}.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/%{name}
-install -m 644 contrib/packaging/rpm/thermos-observer.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/thermos-observer
+install -m 644 packaging/rpm/%{name}.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/%{name}
+install -m 644 packaging/rpm/thermos-observer.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/thermos-observer
 
-install -m 644 contrib/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/clusters.json
+install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/clusters.json
 
 
 # Pre/post installation scripts:
