@@ -27,7 +27,7 @@
 
 Name:          aurora
 Version:       %{AURORA_VERSION}
-Release:       1%{?dist}
+Release:       1%{?dist}.aurora
 Summary:       A Mesos framework for scheduling and executing long-running services and cron jobs.
 Group:         Applications/System
 License:       ASL 2.0
@@ -156,7 +156,6 @@ popd
 # Builds Aurora Thermos and GC executor PEX binaries.
 ./pants binary src/main/python/apache/aurora/executor/bin:gc_executor
 ./pants binary src/main/python/apache/aurora/executor/bin:thermos_executor
-./pants binary src/main/python/apache/thermos/bin:thermos
 ./pants binary src/main/python/apache/thermos/bin:thermos_ckpt
 ./pants binary src/main/python/apache/thermos/bin:thermos_runner
 
