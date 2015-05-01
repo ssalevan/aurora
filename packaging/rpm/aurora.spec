@@ -1,3 +1,17 @@
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # Overridable variables;
 %if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
@@ -70,9 +84,8 @@ resource isolation.
 Summary: A client for scheduling services against the Aurora scheduler
 Group: Development/Tools
 
-%if 0%{?rhel} && 0%{?rhel} < 6
+%if 0%{?rhel} && 0%{?rhel} < 7
 Requires: python27
-Requires: centos-release-SCL
 %else
 Requires: python
 %endif
@@ -96,7 +109,7 @@ Requires: docker
 %endif
 %endif
 Requires: mesos
-%if 0%{?rhel} && 0%{?rhel} < 6
+%if 0%{?rhel} && 0%{?rhel} < 7
 Requires: python27
 %else
 Requires: python
@@ -187,7 +200,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 
 # Installs the Aurora scheduler that was just built into /usr/lib/aurora.
-unzip dist/distributions/aurora-scheduler-*.zip -d %{_prefix}/lib/%{name}
+unzip dist/distributions/aurora-scheduler-*.zip -d %{buildroot}%{_prefix}/lib/%{name}
 
 # Removes unnecessary BAT file.
 rm -f %{buildroot}%{_bindir}/aurora-scheduler.bat
