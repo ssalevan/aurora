@@ -12,6 +12,8 @@
 
 
 GIT_COMMIT ?= HEAD
+MESOS_VERSION ?= 0.22.0
+
 GIT_SHA := $(shell git rev-parse --short $(GIT_COMMIT))
 GIT_TOPDIR := $(shell git rev-parse --show-toplevel)
 
@@ -62,6 +64,7 @@ srpm: get_source_target tar_source
     --define "_specdir %(pwd)" \
     --define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
     --define "AURORA_VERSION $(VERSION)" \
+    --define "MESOS_VERSION $(MESOS_VERSION)" \
     --nodeps -bs aurora.spec
 
 rpm: get_source_target tar_source
@@ -74,7 +77,8 @@ rpm: get_source_target tar_source
     --define "_specdir %(pwd)" \
     --define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
     --define "AURORA_VERSION $(VERSION)" \
-    --nodeps -ba aurora.spec
+    --define "MESOS_VERSION $(MESOS_VERSION)" \
+    -ba aurora.spec
 
 nightly_srpm: nightly_version srpm
 
