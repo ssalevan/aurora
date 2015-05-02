@@ -123,7 +123,7 @@ Requires: python27
 %else
 Requires: python
 %endif
-%if 0%{?fedora} >= 20
+%if 0%{?fedora} > 19
 Requires: mesos-python
 %endif
 
@@ -218,7 +218,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 
 # Installs the Aurora scheduler that was just built into /usr/lib/aurora.
-cp -r dist/install/aurora-scheduler/* %{buildroot}%{_prefix}/lib/%{name} 
+cp -r dist/install/aurora-scheduler/* %{buildroot}%{_prefix}/lib/%{name}
 
 # Installs all PEX binaries.
 for pex_binary in %{PEX_BINARIES}; do
