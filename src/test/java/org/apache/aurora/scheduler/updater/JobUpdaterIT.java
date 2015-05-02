@@ -33,8 +33,6 @@ import com.google.common.eventbus.EventBus;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import com.twitter.common.inject.Bindings;
-import com.twitter.common.inject.Bindings.KeyFactory;
 import com.twitter.common.quantity.Amount;
 import com.twitter.common.quantity.Time;
 import com.twitter.common.stats.Stats;
@@ -43,10 +41,7 @@ import com.twitter.common.testing.easymock.EasyMockTest;
 import com.twitter.common.util.Clock;
 import com.twitter.common.util.TruncatedBinaryBackoff;
 
-import org.apache.aurora.gen.ExecutorConfig;
-import org.apache.aurora.gen.Identity;
 import org.apache.aurora.gen.InstanceTaskConfig;
-import org.apache.aurora.gen.JobKey;
 import org.apache.aurora.gen.JobUpdate;
 import org.apache.aurora.gen.JobUpdateAction;
 import org.apache.aurora.gen.JobUpdateEvent;
@@ -67,6 +62,7 @@ import org.apache.aurora.scheduler.async.RescheduleCalculator;
 import org.apache.aurora.scheduler.async.RescheduleCalculator.RescheduleCalculatorImpl;
 import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.Query;
+import org.apache.aurora.scheduler.base.TaskTestUtil;
 import org.apache.aurora.scheduler.base.Tasks;
 import org.apache.aurora.scheduler.events.EventSink;
 import org.apache.aurora.scheduler.events.PubsubEvent;
@@ -94,8 +90,6 @@ import org.apache.aurora.scheduler.storage.entities.ILock;
 import org.apache.aurora.scheduler.storage.entities.ILockKey;
 import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
 import org.apache.aurora.scheduler.storage.entities.ITaskConfig;
-import org.apache.aurora.scheduler.storage.mem.MemStorage.Delegated;
-import org.apache.aurora.scheduler.storage.mem.MemStorageModule;
 import org.apache.aurora.scheduler.testing.FakeScheduledExecutor;
 import org.apache.aurora.scheduler.testing.FakeStatsProvider;
 import org.apache.aurora.scheduler.updater.JobUpdateController.AuditData;
@@ -146,8 +140,8 @@ public class JobUpdaterIT extends EasyMockTest {
   private static final Amount<Long, Time> FLAPPING_THRESHOLD = Amount.of(1L, Time.MILLISECONDS);
   private static final Amount<Long, Time> ONE_DAY = Amount.of(1L, Time.DAYS);
   private static final ITaskConfig OLD_CONFIG =
-      ITaskConfig.build(makeTaskConfig().setExecutorConfig(new ExecutorConfig().setName("new")));
-  private static final ITaskConfig NEW_CONFIG = ITaskConfig.build(makeTaskConfig());
+      setExecutorData(TaskTestUtil.makeConfig(JOB), "olddata");
+  private static final ITaskConfig NEW_CONFIG = setExecutorData(OLD_CONFIG, "newdata");
   private static final long PULSE_TIMEOUT_MS = 10000;
 
   private FakeScheduledExecutor clock;
@@ -158,6 +152,12 @@ public class JobUpdaterIT extends EasyMockTest {
   private LockManager lockManager;
   private StateManager stateManager;
   private JobUpdateEventSubscriber subscriber;
+
+  private static ITaskConfig setExecutorData(ITaskConfig task, String executorData) {
+    TaskConfig builder = task.newBuilder();
+    builder.getExecutorConfig().setData(executorData);
+    return ITaskConfig.build(builder);
+  }
 
   @Before
   public void setUp() {
@@ -170,8 +170,7 @@ public class JobUpdaterIT extends EasyMockTest {
 
     Injector injector = Guice.createInjector(
         new UpdaterModule(executor),
-        DbModule.testModule(Bindings.annotatedKeyFactory(Delegated.class)),
-        new MemStorageModule(KeyFactory.PLAIN),
+        DbModule.testModule(),
         new AbstractModule() {
           @Override
           protected void configure() {
@@ -486,6 +485,78 @@ public class JobUpdaterIT extends EasyMockTest {
 
     actions.putAll(0, INSTANCE_UPDATING, INSTANCE_UPDATED)
         .putAll(1, INSTANCE_UPDATING, INSTANCE_UPDATED);
+
+    assertState(ROLLED_FORWARD, actions.build());
+    assertEquals(JobUpdatePulseStatus.FINISHED, updater.pulse(UPDATE_ID));
+  }
+
+  @Test
+  public void testRecoverAwaitingPulseFromStorage() throws Exception {
+    expectTaskKilled();
+
+    control.replay();
+
+    JobUpdate builder =
+        setInstanceCount(makeJobUpdate(makeInstanceConfig(0, 0, OLD_CONFIG)), 1).newBuilder();
+    builder.getInstructions().getSettings().setBlockIfNoPulsesAfterMs((int) PULSE_TIMEOUT_MS);
+    final IJobUpdate update = IJobUpdate.build(builder);
+    insertInitialTasks(update);
+    changeState(JOB, 0, ASSIGNED, STARTING, RUNNING);
+    clock.advance(ONE_DAY);
+
+    storage.write(new NoResult.Quiet() {
+      @Override
+      protected void execute(Storage.MutableStoreProvider storeProvider) {
+        saveJobUpdate(storeProvider.getJobUpdateStore(), update, ROLL_FORWARD_AWAITING_PULSE);
+      }
+    });
+
+    subscriber.startAsync().awaitRunning();
+    ImmutableMultimap.Builder<Integer, JobUpdateAction> actions = ImmutableMultimap.builder();
+
+    assertState(ROLL_FORWARD_AWAITING_PULSE, actions.build());
+    assertEquals(JobUpdatePulseStatus.OK, updater.pulse(UPDATE_ID));
+
+    changeState(JOB, 0, KILLED, ASSIGNED, STARTING, RUNNING);
+    clock.advance(WATCH_TIMEOUT);
+    actions.putAll(0, INSTANCE_UPDATING, INSTANCE_UPDATED);
+
+    assertState(ROLLED_FORWARD, actions.build());
+    assertEquals(JobUpdatePulseStatus.FINISHED, updater.pulse(UPDATE_ID));
+  }
+
+  @Test
+  public void testRecoverCoordinatedPausedFromStorage() throws Exception {
+    expectTaskKilled();
+
+    control.replay();
+
+    JobUpdate builder =
+        setInstanceCount(makeJobUpdate(makeInstanceConfig(0, 0, OLD_CONFIG)), 1).newBuilder();
+    builder.getInstructions().getSettings().setBlockIfNoPulsesAfterMs((int) PULSE_TIMEOUT_MS);
+    final IJobUpdate update = IJobUpdate.build(builder);
+    insertInitialTasks(update);
+    changeState(JOB, 0, ASSIGNED, STARTING, RUNNING);
+    clock.advance(ONE_DAY);
+
+    storage.write(new NoResult.Quiet() {
+      @Override
+      protected void execute(Storage.MutableStoreProvider storeProvider) {
+        saveJobUpdate(storeProvider.getJobUpdateStore(), update, ROLL_FORWARD_PAUSED);
+      }
+    });
+
+    subscriber.startAsync().awaitRunning();
+    ImmutableMultimap.Builder<Integer, JobUpdateAction> actions = ImmutableMultimap.builder();
+
+    assertState(ROLL_FORWARD_PAUSED, actions.build());
+    assertEquals(JobUpdatePulseStatus.OK, updater.pulse(UPDATE_ID));
+
+    updater.resume(UPDATE_ID, AUDIT);
+
+    changeState(JOB, 0, KILLED, ASSIGNED, STARTING, RUNNING);
+    clock.advance(WATCH_TIMEOUT);
+    actions.putAll(0, INSTANCE_UPDATING, INSTANCE_UPDATED);
 
     assertState(ROLLED_FORWARD, actions.build());
     assertEquals(JobUpdatePulseStatus.FINISHED, updater.pulse(UPDATE_ID));
@@ -1326,16 +1397,5 @@ public class JobUpdaterIT extends EasyMockTest {
     return IInstanceTaskConfig.build(new InstanceTaskConfig()
         .setInstances(ImmutableSet.of(new Range(start, end)))
         .setTask(config.newBuilder()));
-  }
-
-  private static TaskConfig makeTaskConfig() {
-    return new TaskConfig()
-        .setJob(new JobKey(JOB.newBuilder()))
-        .setJobName(JOB.getName())
-        .setEnvironment(JOB.getEnvironment())
-        .setOwner(new Identity(JOB.getRole(), "user"))
-        .setIsService(true)
-        .setExecutorConfig(new ExecutorConfig().setName("old"))
-        .setNumCpus(1);
   }
 }

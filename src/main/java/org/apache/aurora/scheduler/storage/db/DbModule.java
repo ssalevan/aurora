@@ -22,15 +22,18 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Key;
 import com.google.inject.PrivateModule;
-import com.twitter.common.inject.Bindings;
+import com.twitter.common.inject.Bindings.KeyFactory;
 
 import org.apache.aurora.scheduler.storage.AttributeStore;
+import org.apache.aurora.scheduler.storage.CronJobStore;
 import org.apache.aurora.scheduler.storage.JobUpdateStore;
 import org.apache.aurora.scheduler.storage.LockStore;
 import org.apache.aurora.scheduler.storage.QuotaStore;
 import org.apache.aurora.scheduler.storage.SchedulerStore;
 import org.apache.aurora.scheduler.storage.Storage;
+import org.apache.aurora.scheduler.storage.TaskStore;
 import org.apache.aurora.scheduler.storage.db.typehandlers.TypeHandlers;
+import org.apache.aurora.scheduler.storage.mem.InMemStoresModule;
 import org.apache.ibatis.session.AutoMappingBehavior;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
@@ -73,29 +76,28 @@ public class DbModule extends PrivateModule {
       .add(QuotaMapper.class)
       .build();
 
-  private final Bindings.KeyFactory keyFactory;
+  private final KeyFactory keyFactory;
   private final String jdbcSchema;
 
-  private DbModule(Bindings.KeyFactory keyFactory, String jdbcSchema) {
+  private DbModule(KeyFactory keyFactory, String jdbcSchema) {
     this.keyFactory = requireNonNull(keyFactory);
     this.jdbcSchema = requireNonNull(jdbcSchema);
   }
 
-  public DbModule(Bindings.KeyFactory keyFactory) {
+  public DbModule(KeyFactory keyFactory) {
     this(keyFactory, "aurora;DB_CLOSE_DELAY=-1");
   }
 
   /**
    * Creates a module that will prepare a private in-memory database.
    *
-   * @param keyFactory Key factory to scope bindings.
    * @return A new database module for testing.
    */
   @VisibleForTesting
-  public static DbModule testModule(Bindings.KeyFactory keyFactory) {
+  public static DbModule testModule() {
     // This creates a private in-memory database.  New connections will have a _new_ database,
     // and closing the database will expunge its data.
-    return new DbModule(keyFactory, "");
+    return new DbModule(KeyFactory.PLAIN, "");
   }
 
   private <T> void bindStore(Class<T> binding, Class<? extends T> impl) {
@@ -130,6 +132,10 @@ public class DbModule extends PrivateModule {
         addTypeHandlersClasses(TypeHandlers.getAll());
       }
     });
+    install(new InMemStoresModule(keyFactory));
+    expose(keyFactory.create(CronJobStore.Mutable.class));
+    expose(keyFactory.create(TaskStore.Mutable.class));
+
     bindStore(AttributeStore.Mutable.class, DbAttributeStore.class);
     bindStore(LockStore.Mutable.class, DbLockStore.class);
     bindStore(QuotaStore.Mutable.class, DbQuotaStore.class);

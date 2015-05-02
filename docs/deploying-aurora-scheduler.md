@@ -13,6 +13,7 @@ machines.  This guide helps you get the scheduler set up and troubleshoot some c
   - [Storage Performance Considerations](#storage-performance-considerations)
   - [Network considerations](#network-considerations)
   - [Considerations for running jobs in docker](#considerations-for-running-jobs-in-docker)
+  - [Security Considerations](#security-considerations)
 - [Running Aurora](#running-aurora)
   - [Maintaining an Aurora Installation](#maintaining-an-aurora-installation)
   - [Monitoring](#monitoring)
@@ -34,7 +35,7 @@ machines.  This guide helps you get the scheduler set up and troubleshoot some c
 ## Installing Aurora
 The Aurora scheduler is a standalone Java server. As part of the build process it creates a bundle
 of all its dependencies, with the notable exceptions of the JVM and libmesos. Each target server
-should have a JVM (Java 7 or higher) and libmesos (0.21.1) installed.
+should have a JVM (Java 7 or higher) and libmesos (0.22.0) installed.
 
 ### Creating the Distribution .zip File (Optional)
 To create a distribution for installation you will need build tools installed. On Ubuntu this can be
@@ -182,6 +183,10 @@ For example, monit can be configured with
     if failed port 8081 send "GET /health HTTP/1.0\r\n" expect "OK\n" with timeout 2 seconds for 10 cycles then restart
 
 assuming you set `-http_port=8081`.
+
+## Security Considerations
+
+See [security.md](security.md).
 
 ### Maintaining an Aurora Installation
 

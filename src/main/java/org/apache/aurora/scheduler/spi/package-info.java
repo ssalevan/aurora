@@ -11,24 +11,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.aurora.scheduler.storage.db;
+/**
+ * Service Provider Interface for Aurora. Java classes outside this package, even public ones,
+ * will not necessarily be backwards ABI-compatible across releases unless they are explicitly
+ * documented as being part of a public API or SPI.
+ */
+@ParametersAreNonnullByDefault
+package org.apache.aurora.scheduler.spi;
 
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.twitter.common.inject.Bindings;
-
-import org.apache.aurora.scheduler.storage.Storage;
-
-final class DbUtil {
-
-  private DbUtil() {
-    // Utility class.
-  }
-
-  static Storage createStorage() {
-    Injector injector = Guice.createInjector(DbModule.testModule(Bindings.KeyFactory.PLAIN));
-    Storage storage = injector.getInstance(Storage.class);
-    storage.prepare();
-    return storage;
-  }
-}
+import javax.annotation.ParametersAreNonnullByDefault;

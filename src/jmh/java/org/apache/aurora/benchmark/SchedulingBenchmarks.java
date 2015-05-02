@@ -20,9 +20,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.inject.Singleton;
 
-import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.eventbus.EventBus;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.AbstractModule;
@@ -45,22 +42,21 @@ import org.apache.aurora.scheduler.async.OfferManager;
 import org.apache.aurora.scheduler.async.RescheduleCalculator;
 import org.apache.aurora.scheduler.async.TaskScheduler;
 import org.apache.aurora.scheduler.async.TaskScheduler.TaskSchedulerImpl.ReservationDuration;
+import org.apache.aurora.scheduler.async.preemptor.BiCache;
 import org.apache.aurora.scheduler.async.preemptor.ClusterStateImpl;
-import org.apache.aurora.scheduler.async.preemptor.Preemptor;
+import org.apache.aurora.scheduler.async.preemptor.PendingTaskProcessor;
 import org.apache.aurora.scheduler.async.preemptor.PreemptorModule;
 import org.apache.aurora.scheduler.events.EventSink;
 import org.apache.aurora.scheduler.events.PubsubEvent;
-import org.apache.aurora.scheduler.filter.AttributeAggregate;
 import org.apache.aurora.scheduler.filter.SchedulingFilter;
 import org.apache.aurora.scheduler.filter.SchedulingFilterImpl;
 import org.apache.aurora.scheduler.mesos.Driver;
 import org.apache.aurora.scheduler.mesos.ExecutorSettings;
 import org.apache.aurora.scheduler.state.StateModule;
 import org.apache.aurora.scheduler.storage.Storage;
-import org.apache.aurora.scheduler.storage.entities.IAssignedTask;
+import org.apache.aurora.scheduler.storage.db.DbUtil;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
 import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
-import org.apache.aurora.scheduler.storage.mem.MemStorage;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -68,6 +64,7 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -91,7 +88,7 @@ public class SchedulingBenchmarks {
     private static final Amount<Long, Time> NO_DELAY = Amount.of(0L, Time.MILLISECONDS);
     private static final Amount<Long, Time> DELAY_FOREVER = Amount.of(30L, Time.DAYS);
     protected Storage storage;
-    protected Preemptor preemptor;
+    protected PendingTaskProcessor pendingTaskProcessor;
     protected ScheduledThreadPoolExecutor executor;
     private TaskScheduler taskScheduler;
     private OfferManager offerManager;
@@ -103,7 +100,7 @@ public class SchedulingBenchmarks {
      */
     @Setup(Level.Trial)
     public void setUpBenchmark() {
-      storage = MemStorage.newEmptyStorage();
+      storage = DbUtil.createStorage();
       eventBus = new EventBus();
       final FakeClock clock = new FakeClock();
       clock.setNowMillis(System.currentTimeMillis());
@@ -130,7 +127,11 @@ public class SchedulingBenchmarks {
                       return DELAY_FOREVER;
                     }
                   });
-
+              bind(BiCache.BiCacheSettings.class).toInstance(
+                  new BiCache.BiCacheSettings(DELAY_FOREVER, ""));
+              bind(TaskScheduler.class).to(TaskScheduler.TaskSchedulerImpl.class);
+              bind(TaskScheduler.TaskSchedulerImpl.class).in(Singleton.class);
+              expose(TaskScheduler.class);
               expose(OfferManager.class);
             }
           },
@@ -140,8 +141,6 @@ public class SchedulingBenchmarks {
               bind(new TypeLiteral<Amount<Long, Time>>() { })
                   .annotatedWith(ReservationDuration.class)
                   .toInstance(DELAY_FOREVER);
-              bind(TaskScheduler.class).to(TaskScheduler.TaskSchedulerImpl.class);
-              bind(TaskScheduler.TaskSchedulerImpl.class).in(Singleton.class);
               bind(TaskIdGenerator.class).to(TaskIdGenerator.TaskIdGeneratorImpl.class);
               bind(SchedulingFilter.class).to(SchedulingFilterImpl.class);
               bind(SchedulingFilterImpl.class).in(Singleton.class);
@@ -168,7 +167,7 @@ public class SchedulingBenchmarks {
 
       taskScheduler = injector.getInstance(TaskScheduler.class);
       offerManager = injector.getInstance(OfferManager.class);
-      preemptor = injector.getInstance(Preemptor.class);
+      pendingTaskProcessor = injector.getInstance(PendingTaskProcessor.class);
       eventBus.register(injector.getInstance(ClusterStateImpl.class));
 
       settings = getSettings();
@@ -178,7 +177,7 @@ public class SchedulingBenchmarks {
       Offers.addOffers(offerManager, offers);
       fillUpCluster(offers.size());
 
-      saveTasks(ImmutableSet.of(settings.getTask()));
+      saveTasks(settings.getTasks());
     }
 
     @Setup(Level.Iteration)
@@ -235,7 +234,11 @@ public class SchedulingBenchmarks {
      */
     @Benchmark
     public boolean runBenchmark() {
-      return taskScheduler.schedule(settings.getTask().getAssignedTask().getTaskId());
+      boolean result = false;
+      for (IScheduledTask task : settings.getTasks()) {
+        result = taskScheduler.schedule(task.getAssignedTask().getTaskId());
+      }
+      return result;
     }
   }
 
@@ -247,10 +250,10 @@ public class SchedulingBenchmarks {
     protected BenchmarkSettings getSettings() {
       return new BenchmarkSettings.Builder()
           .setHostAttributes(new Hosts.Builder().setNumHostsPerRack(2).build(1000))
-          .setTask(Iterables.getOnlyElement(new Tasks.Builder()
+          .setTasks(new Tasks.Builder()
               .setProduction(true)
               .setCpu(32)
-              .build(1))).build();
+              .build(1)).build();
     }
   }
 
@@ -262,10 +265,10 @@ public class SchedulingBenchmarks {
     protected BenchmarkSettings getSettings() {
       return new BenchmarkSettings.Builder()
           .setHostAttributes(new Hosts.Builder().setNumHostsPerRack(2).build(1000))
-          .setTask(Iterables.getOnlyElement(new Tasks.Builder()
+          .setTasks(new Tasks.Builder()
               .setProduction(true)
               .addValueConstraint("host", "denied")
-              .build(1))).build();
+              .build(1)).build();
     }
   }
 
@@ -277,10 +280,10 @@ public class SchedulingBenchmarks {
     protected BenchmarkSettings getSettings() {
       return new BenchmarkSettings.Builder()
           .setHostAttributes(new Hosts.Builder().setNumHostsPerRack(2).build(1000))
-          .setTask(Iterables.getOnlyElement(new Tasks.Builder()
+          .setTasks(new Tasks.Builder()
               .setProduction(true)
               .addLimitConstraint("host", 0)
-              .build(1))).build();
+              .build(1)).build();
     }
   }
 
@@ -295,10 +298,10 @@ public class SchedulingBenchmarks {
           .setClusterUtilization(1.0)
           .setVictimPreemptionEligibilty(true)
           .setHostAttributes(new Hosts.Builder().setNumHostsPerRack(2).build(10000))
-          .setTask(Iterables.getOnlyElement(new Tasks.Builder()
+          .setTasks(new Tasks.Builder()
               .setProduction(true)
               .addLimitConstraint("host", 0)
-              .build(1))).build();
+              .build(1)).build();
     }
   }
 
@@ -306,36 +309,25 @@ public class SchedulingBenchmarks {
    * Tests preemptor searching for a preemption slot in a completely filled up cluster.
    */
   public static class PreemptorSlotSearchBenchmark extends AbstractBase {
+    @Param({"1", "10", "100", "1000"})
+    public int numPendingTasks;
+
     @Override
     protected BenchmarkSettings getSettings() {
       return new BenchmarkSettings.Builder()
           .setClusterUtilization(1.0)
-          .setHostAttributes(new Hosts.Builder().setNumHostsPerRack(2).build(1000))
-          .setTask(Iterables.getOnlyElement(new Tasks.Builder()
+          .setHostAttributes(new Hosts.Builder().setNumHostsPerRack(2).build(10000))
+          .setTasks(new Tasks.Builder()
               .setProduction(true)
               .addValueConstraint("host", "denied")
-              .build(1))).build();
+              .build(numPendingTasks)).build();
     }
 
     @Override
     public boolean runBenchmark() {
-      return storage.write(new Storage.MutateWork.Quiet<Boolean>() {
-        @Override
-        public Boolean apply(final Storage.MutableStoreProvider storeProvider) {
-          IAssignedTask assignedTask = getSettings().getTask().getAssignedTask();
-          AttributeAggregate aggregate =
-              AttributeAggregate.getJobActiveState(storeProvider, assignedTask.getTask().getJob());
-          Optional<String> result =
-              preemptor.attemptPreemptionFor(assignedTask, aggregate, storeProvider);
-
-          while (executor.getActiveCount() > 0) {
-            // Using a tight loop to wait for a search completion. This is executed on a benchmark
-            // main thread and does not affect test results.
-          }
-
-          return result.isPresent();
-        }
-      });
+      pendingTaskProcessor.run();
+      // Return non-guessable result to satisfy "blackhole" requirement.
+      return System.currentTimeMillis() % 5 == 0;
     }
   }
 }

@@ -17,9 +17,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
+import com.twitter.common.inject.TimedInterceptor.Timed;
 
 import org.apache.aurora.gen.JobUpdateAction;
 import org.apache.aurora.gen.JobUpdateStatus;
@@ -34,9 +36,7 @@ import org.apache.aurora.scheduler.storage.Storage;
 import org.apache.aurora.scheduler.storage.TaskStore;
 import org.apache.ibatis.builder.StaticSqlSource;
 import org.apache.ibatis.exceptions.PersistenceException;
-import org.apache.ibatis.logging.LogFactory;
 import org.apache.ibatis.mapping.MappedStatement.Builder;
-import org.apache.ibatis.mapping.SqlCommandType;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -44,15 +44,12 @@ import org.mybatis.guice.transactional.Transactional;
 
 import static java.util.Objects.requireNonNull;
 
+import static org.apache.ibatis.mapping.SqlCommandType.UPDATE;
+
 /**
  * A storage implementation backed by a relational database.
  * <p>
  * Delegates read and write concurrency semantics to the underlying database.
- * This class is currently only partially implemented, with the underlying
- * {@link MutableStoreProvider} only providing some, but not all, store implementations. It is
- * designed to be a long term replacement for
- * {@link org.apache.aurora.scheduler.storage.mem.MemStorage}.
- * </p>
  */
 class DbStorage extends AbstractIdleService implements Storage {
 
@@ -64,6 +61,8 @@ class DbStorage extends AbstractIdleService implements Storage {
   DbStorage(
       SqlSessionFactory sessionFactory,
       EnumValueMapper enumValueMapper,
+      final CronJobStore.Mutable cronJobStore,
+      final TaskStore.Mutable taskStore,
       final SchedulerStore.Mutable schedulerStore,
       final AttributeStore.Mutable attributeStore,
       final LockStore.Mutable lockStore,
@@ -72,6 +71,8 @@ class DbStorage extends AbstractIdleService implements Storage {
 
     this.sessionFactory = requireNonNull(sessionFactory);
     this.enumValueMapper = requireNonNull(enumValueMapper);
+    requireNonNull(cronJobStore);
+    requireNonNull(taskStore);
     requireNonNull(schedulerStore);
     requireNonNull(attributeStore);
     requireNonNull(lockStore);
@@ -85,17 +86,17 @@ class DbStorage extends AbstractIdleService implements Storage {
 
       @Override
       public CronJobStore.Mutable getCronJobStore() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return cronJobStore;
       }
 
       @Override
       public TaskStore getTaskStore() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return taskStore;
       }
 
       @Override
       public TaskStore.Mutable getUnsafeTaskStore() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return taskStore;
       }
 
       @Override
@@ -120,6 +121,7 @@ class DbStorage extends AbstractIdleService implements Storage {
     };
   }
 
+  @Timed("db_storage_read_operation")
   @Override
   @Transactional
   public <T, E extends Exception> T read(Work<T, E> work) throws StorageException, E {
@@ -130,6 +132,7 @@ class DbStorage extends AbstractIdleService implements Storage {
     }
   }
 
+  @Timed("db_storage_write_operation")
   @Override
   @Transactional
   public <T, E extends Exception> T write(MutateWork<T, E> work) throws StorageException, E {
@@ -140,9 +143,40 @@ class DbStorage extends AbstractIdleService implements Storage {
     }
   }
 
+  @VisibleForTesting
+  static final String DISABLE_UNDO_LOG = "DISABLE_UNDO_LOG";
+  @VisibleForTesting
+  static final String ENABLE_UNDO_LOG = "ENABLE_UNDO_LOG";
+
+  // TODO(wfarner): Including @Transactional here seems to render the UNDO_LOG changes useless,
+  // resulting in no performance gain.  Figure out why.
+  @Timed("db_storage_bulk_load_operation")
+  @Override
+  public <E extends Exception> void bulkLoad(MutateWork.NoResult<E> work)
+      throws StorageException, E {
+
+    // Disabling the undo log disables transaction rollback, but dramatically speeds up a bulk
+    // insert.
+    try (SqlSession session = sessionFactory.openSession(false)) {
+      try {
+        session.update(DISABLE_UNDO_LOG);
+        work.apply(storeProvider);
+      } catch (PersistenceException e) {
+        throw new StorageException(e.getMessage(), e);
+      } finally {
+        session.update(ENABLE_UNDO_LOG);
+      }
+    }
+  }
+
   @Override
   public void prepare() {
     startAsync().awaitRunning();
+  }
+
+  private static void addMappedStatement(Configuration configuration, String name, String sql) {
+    configuration.addMappedStatement(
+        new Builder(configuration, name, new StaticSqlSource(configuration, sql), UPDATE).build());
   }
 
   /**
@@ -152,22 +186,18 @@ class DbStorage extends AbstractIdleService implements Storage {
   @Override
   @Transactional
   protected void startUp() throws IOException {
-    LogFactory.useJdkLogging();
-
     Configuration configuration = sessionFactory.getConfiguration();
     String createStatementName = "create_tables";
     configuration.setMapUnderscoreToCamelCase(true);
-    configuration.addMappedStatement(new Builder(
+
+    addMappedStatement(
         configuration,
         createStatementName,
-        new StaticSqlSource(
-            configuration,
-            CharStreams.toString(
-                new InputStreamReader(
-                    DbStorage.class.getResourceAsStream("schema.sql"),
-                    StandardCharsets.UTF_8))),
-        SqlCommandType.UPDATE)
-        .build());
+        CharStreams.toString(new InputStreamReader(
+            DbStorage.class.getResourceAsStream("schema.sql"),
+            StandardCharsets.UTF_8)));
+    addMappedStatement(configuration, DISABLE_UNDO_LOG, "SET UNDO_LOG 0;");
+    addMappedStatement(configuration, ENABLE_UNDO_LOG, "SET UNDO_LOG 1;");
 
     try (SqlSession session = sessionFactory.openSession()) {
       session.update(createStatementName);

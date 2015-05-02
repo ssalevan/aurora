@@ -35,7 +35,6 @@ import org.apache.aurora.scheduler.mesos.DriverSettings;
 import org.apache.aurora.scheduler.storage.DistributedSnapshotStore;
 import org.apache.aurora.scheduler.storage.Storage;
 import org.apache.aurora.scheduler.storage.Storage.NonVolatileStorage;
-import org.apache.aurora.scheduler.storage.log.LogStorage;
 import org.apache.mesos.Protos;
 import org.apache.mesos.SchedulerDriver;
 import org.apache.shiro.io.ResourceUtils;
@@ -58,7 +57,7 @@ public class LocalSchedulerMain extends SchedulerMain {
     return new AbstractModule() {
       @Override
       protected void configure() {
-        bind(Storage.class).to(Key.get(Storage.class, LogStorage.WriteBehind.class));
+        bind(Storage.class).to(Key.get(Storage.class, Storage.Volatile.class));
         bind(NonVolatileStorage.class).to(FakeNonVolatileStorage.class);
         bind(DistributedSnapshotStore.class).toInstance(new DistributedSnapshotStore() {
           @Override
@@ -98,7 +97,7 @@ public class LocalSchedulerMain extends SchedulerMain {
         .add("-mesos_master_address=fake")
         .add("-thermos_executor_path=fake")
         .add("-http_port=8081")
-        .add("-enable_api_security=true")
+        .add("-http_authentication_mechanism=BASIC")
         .add("-shiro_ini_path="
             + ResourceUtils.CLASSPATH_PREFIX
             + "org/apache/aurora/scheduler/http/api/security/shiro-example.ini")

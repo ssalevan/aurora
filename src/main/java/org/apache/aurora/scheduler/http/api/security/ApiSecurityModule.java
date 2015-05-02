@@ -44,6 +44,9 @@ import org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter;
 
 import static java.util.Objects.requireNonNull;
 
+import static org.apache.aurora.scheduler.spi.Permissions.Domain.THRIFT_AURORA_ADMIN;
+import static org.apache.aurora.scheduler.spi.Permissions.Domain.THRIFT_AURORA_SCHEDULER_MANAGER;
+
 /**
  * Provides HTTP Basic Authentication for the API using Apache Shiro. When enabled, prevents
  * unauthenticated access to write APIs. Write API access must also be authorized, with permissions
@@ -51,21 +54,7 @@ import static java.util.Objects.requireNonNull;
  * this package.
  */
 public class ApiSecurityModule extends ServletModule {
-  /**
-   * Prefix for the permission protecting all AuroraSchedulerManager RPCs.
-   */
-  public static final String AURORA_SCHEDULER_MANAGER_PERMISSION = "thrift.AuroraSchedulerManager";
-
-  /**
-   * Prefix for the permission protecting all AuroraAdmin RPCs.
-   */
-  public static final String AURORA_ADMIN_PERMISSION = "thrift.AuroraAdmin";
-
   public static final String HTTP_REALM_NAME = "Apache Aurora Scheduler";
-
-  @CmdLine(name = "enable_api_security",
-      help = "Enable security for the Thrift API (beta).")
-  private static final Arg<Boolean> ENABLE_API_SECURITY = Arg.create(false);
 
   @CmdLine(name = "shiro_realm_modules",
       help = "Guice modules for configuring Shiro Realms.")
@@ -80,7 +69,12 @@ public class ApiSecurityModule extends ServletModule {
   static final Matcher<Method> AURORA_ADMIN_SERVICE =
       GuiceUtils.interfaceMatcher(AuroraAdmin.Iface.class, true);
 
-  public static enum HttpAuthenticationMechanism {
+  public enum HttpAuthenticationMechanism {
+    /**
+     * No security.
+     */
+    NONE,
+
     /**
      * HTTP Basic Authentication, produces {@link org.apache.shiro.authc.UsernamePasswordToken}s.
      */
@@ -94,28 +88,31 @@ public class ApiSecurityModule extends ServletModule {
 
   @CmdLine(name = "http_authentication_mechanism", help = "HTTP Authentication mechanism to use.")
   private static final Arg<HttpAuthenticationMechanism> HTTP_AUTHENTICATION_MECHANISM =
-      Arg.create(HttpAuthenticationMechanism.BASIC);
+      Arg.create(HttpAuthenticationMechanism.NONE);
 
-  private final boolean enableApiSecurity;
+  private final HttpAuthenticationMechanism mechanism;
   private final Set<Module> shiroConfigurationModules;
 
   public ApiSecurityModule() {
-    this(ENABLE_API_SECURITY.get(), SHIRO_REALM_MODULE.get());
+    this(HTTP_AUTHENTICATION_MECHANISM.get(), SHIRO_REALM_MODULE.get());
   }
 
   @VisibleForTesting
   ApiSecurityModule(Module shiroConfigurationModule) {
-    this(true, ImmutableSet.of(shiroConfigurationModule));
+    this(HttpAuthenticationMechanism.BASIC, ImmutableSet.of(shiroConfigurationModule));
   }
 
-  private ApiSecurityModule(boolean enableApiSecurity, Set<Module> shiroConfigurationModules) {
-    this.enableApiSecurity = enableApiSecurity;
+  private ApiSecurityModule(
+      HttpAuthenticationMechanism mechanism,
+      Set<Module> shiroConfigurationModules) {
+
+    this.mechanism = requireNonNull(mechanism);
     this.shiroConfigurationModules = requireNonNull(shiroConfigurationModules);
   }
 
   @Override
   protected void configureServlets() {
-    if (enableApiSecurity) {
+    if (mechanism != HttpAuthenticationMechanism.NONE) {
       doConfigureServlets();
     }
   }
@@ -132,7 +129,7 @@ public class ApiSecurityModule extends ServletModule {
           install(module);
         }
 
-        switch (HTTP_AUTHENTICATION_MECHANISM.get()) {
+        switch (mechanism) {
           case BASIC:
             addFilterChain("/**",
                 ShiroWebModule.NO_SESSION_CREATION,
@@ -146,7 +143,7 @@ public class ApiSecurityModule extends ServletModule {
             break;
 
           default:
-            addError("Unrecognized HTTP authentication mechanism.");
+            addError("Unrecognized HTTP authentication mechanism: " + mechanism);
             break;
         }
       }
@@ -168,15 +165,15 @@ public class ApiSecurityModule extends ServletModule {
         AURORA_SCHEDULER_MANAGER_SERVICE.or(AURORA_ADMIN_SERVICE),
         authenticatingInterceptor);
 
-    MethodInterceptor apiInterceptor =
-        new ShiroAuthorizingParamInterceptor(AURORA_SCHEDULER_MANAGER_PERMISSION);
+    MethodInterceptor apiInterceptor = new ShiroAuthorizingParamInterceptor(
+        THRIFT_AURORA_SCHEDULER_MANAGER);
     requestInjection(apiInterceptor);
     bindInterceptor(
         Matchers.subclassesOf(AuroraSchedulerManager.Iface.class),
         AURORA_SCHEDULER_MANAGER_SERVICE,
         apiInterceptor);
 
-    MethodInterceptor adminInterceptor = new ShiroAuthorizingInterceptor(AURORA_ADMIN_PERMISSION);
+    MethodInterceptor adminInterceptor = new ShiroAuthorizingInterceptor(THRIFT_AURORA_ADMIN);
     requestInjection(adminInterceptor);
     bindInterceptor(
         Matchers.subclassesOf(AnnotatedAuroraAdmin.class),
