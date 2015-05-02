@@ -47,9 +47,6 @@ AURORA_FLAGS=(
   # ServerSet, which keeps track of all live Aurora schedulers.
   -serverset_path='/aurora/scheduler'
 
-  # Uses the snazzy new online updater.
-  -enable_beta_updater=true
-
   # The log level of the built-in logger.
   -vlog='INFO'
 
