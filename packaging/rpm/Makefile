@@ -55,7 +55,7 @@ tar_source: mkdir
 srpm: get_source_target tar_source
 	rpmbuild $(RPM_OPTS) \
     --define "_topdir $(RPM_TOPDIR)" \
- 	  --define "_builddir %{_topdir}/rpmbuild/BUILD" \
+    --define "_builddir %{_topdir}/rpmbuild/BUILD" \
     --define "_buildrootdir %{_topdir}/rpmbuild/BUILDROOT" \
     --define "_rpmdir %{_topdir}/rpmbuild/RPMS" \
     --define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
@@ -67,7 +67,7 @@ srpm: get_source_target tar_source
 rpm: get_source_target tar_source
 	rpmbuild $(RPM_OPTS) \
     --define "_topdir $(RPM_TOPDIR)" \
- 	  --define "_builddir %{_topdir}/rpmbuild/BUILD" \
+    --define "_builddir %{_topdir}/rpmbuild/BUILD" \
     --define "_buildrootdir %{_topdir}/rpmbuild/BUILDROOT" \
     --define "_rpmdir %{_topdir}/rpmbuild/RPMS" \
     --define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
