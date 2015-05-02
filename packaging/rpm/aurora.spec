@@ -16,24 +16,35 @@
 %if %{?!AURORA_VERSION:1}0
 %global AURORA_VERSION 0.8.0
 %endif
+
 %if %{?!GRADLE_BASEURL:1}0
 %global GRADLE_BASEURL https://services.gradle.org/distributions
 %endif
+
 %if %{?!GRADLE_VERSION:1}0
 %global GRADLE_VERSION 2.3
 %endif
+
 %if %{?!JAVA_VERSION:!}0
+%if 0%{?fedora} && 0%{?fedora} > 20
+%global JAVA_VERSION 1.8.0
+%else
 %global JAVA_VERSION 1.7.0
 %endif
+%endif
+
 %if %{?!MESOS_BASEURL:1}0
 %global MESOS_BASEURL https://archive.apache.org/dist/mesos
 %endif
+
 %if %{?!MESOS_VERSION:1}0
 %global MESOS_VERSION 0.21.1
 %endif
+
 %if %{?!PEX_BINARIES:1}0
 %global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
 %endif
+
 %if %{?!PYTHON_VERSION:1}0
 %global PYTHON_VERSION 2.7
 %endif
@@ -99,14 +110,12 @@ schedulers.
 Summary: Mesos executor that executes tasks scheduled by the Aurora scheduler
 Group: Applications/System
 
-Requires: cyrus-sasl-libs
+Requires: cyrus-sasl
 Requires: daemonize
 %ifarch x86_64
-%if 0%{?fedora} >= 20
 Requires: docker-io
 %else
 Requires: docker
-%endif
 %endif
 Requires: mesos
 %if 0%{?rhel} && 0%{?rhel} < 7
@@ -159,8 +168,15 @@ find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
 popd
 %endif
 
+# Ensures that Java source compilation settings are set to Java 1.8-levels if we're
+# running in a new Fedora, where Java 1.7 is no longer packaged.
+%if 0%{?fedora} && 0%{?fedora} > 19
+sed -i 's/    sourceCompatibility =.*/    sourceCompatibility = 1.8/' build.gradle
+sed -i 's/    targetCompatibility =.*/    targetCompatibility = 1.8/' build.gradle
+%endif
+
 # Builds the Aurora scheduler.
-./gradle-%{GRADLE_VERSION}/bin/gradle distZip
+./gradle-%{GRADLE_VERSION}/bin/gradle installDist
 
 # Builds Aurora client PEX binaries.
 ./pants binary src/main/python/apache/aurora/admin:aurora_admin
@@ -193,7 +209,8 @@ mkdir -p %{buildroot}%{_prefix}/lib/%{name}
 mkdir -p %{buildroot}%{_sharedstatedir}
 mkdir -p %{buildroot}%{_localstatedir}/lib/%{name}
 mkdir -p %{buildroot}%{_localstatedir}/log/%{name}
-mkdir -p %{buildroot}%{_localstatedir}/log/thermos-observer
+mkdir -p %{buildroot}%{_localstatedir}/log/thermos
+mkdir -p %{buildroot}%{_localstatedir}/run/thermos
 mkdir -p %{buildroot}%{_sysconfdir}/%{name}
 mkdir -p %{buildroot}%{_sysconfdir}/init.d
 mkdir -p %{buildroot}%{_sysconfdir}/systemd/system
@@ -201,10 +218,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 
 # Installs the Aurora scheduler that was just built into /usr/lib/aurora.
-unzip dist/distributions/aurora-scheduler-*.zip -d %{buildroot}%{_prefix}/lib/%{name}
-
-# Removes unnecessary BAT file.
-rm -f %{buildroot}%{_bindir}/aurora-scheduler.bat
+cp -r dist/install/aurora-scheduler/* %{buildroot}%{_prefix}/lib/%{name} 
 
 # Installs all PEX binaries.
 for pex_binary in %{PEX_BINARIES}; do
@@ -282,6 +296,7 @@ install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/cl
 %{_localstatedir}/lib/%{name}
 %{_localstatedir}/log/%{name}
 %{_prefix}/lib/%{name}/bin/*
+%{_prefix}/lib/%{name}/etc/*
 %{_prefix}/lib/%{name}/lib/*
 %if 0%{?fedora} || 0%{?rhel} > 6
 %{_sysconfdir}/systemd/system/%{name}.service
