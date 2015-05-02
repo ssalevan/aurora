@@ -265,6 +265,8 @@ install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/cl
 %postun
 %if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_postun_with_restart %{name}.service
+%else
+/sbin/service %{name} start >/dev/null 2>&1
 %endif
 
 
@@ -286,6 +288,8 @@ install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/cl
 %postun thermos
 %if 0%{?fedora} || 0%{?rhel} > 6
 %systemd_postun_with_restart thermos-observer.service
+%else
+/sbin/service thermos-observer start >/dev/null 2>&1
 %endif
 
 
