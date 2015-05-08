@@ -26,7 +26,7 @@
 %endif
 
 %if %{?!JAVA_VERSION:!}0
-%if 0%{?fedora} && 0%{?fedora} > 20
+%if 0%{?fedora} && 0%{?fedora} > 19
 %global JAVA_VERSION 1.8.0
 %else
 %global JAVA_VERSION 1.7.0
@@ -123,9 +123,6 @@ Requires: python27
 %else
 Requires: python
 %endif
-%if 0%{?fedora} > 19
-Requires: mesos-python
-%endif
 
 %description thermos
 Thermos a simple process management framework used for orchestrating dependent processes
@@ -158,7 +155,6 @@ unzip gradle-%{GRADLE_VERSION}-bin.zip
 mkdir -p .pants.d/python/eggs/
 
 # Builds mesos-native and mesos-interface eggs if not currently packaged.
-%if 0%{?fedora} < 20
 wget "%{MESOS_BASEURL}/%{MESOS_VERSION}/mesos-%{MESOS_VERSION}.tar.gz"
 tar xvzf mesos-%{MESOS_VERSION}.tar.gz
 pushd mesos-%{MESOS_VERSION}
@@ -166,7 +162,6 @@ pushd mesos-%{MESOS_VERSION}
 make
 find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
 popd
-%endif
 
 # Ensures that Java source compilation settings are set to Java 1.8-levels if we're
 # running in a new Fedora, where Java 1.7 is no longer packaged.
