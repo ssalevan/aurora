@@ -55,6 +55,7 @@ EXIT_NETWORK_ERROR = 7
 EXIT_TIMEOUT = 9
 EXIT_API_ERROR = 10
 EXIT_UNKNOWN_ERROR = 20
+EXIT_AUTH_ERROR = 30
 
 
 try:
@@ -316,7 +317,7 @@ class CommandLine(AbstractClass):
     except Context.CommandErrorLogged as c:
       return c.code
     except Context.CommandError as c:
-      context.print_err("Error executing command: %s" % c.msg)
+      context.print_err(c.msg)
       return c.code
     except AuroraClientAPI.Error as e:
       # TODO(wfarner): Generalize this error type in the contract of noun and verb implementations.
