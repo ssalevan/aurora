@@ -83,6 +83,7 @@ BuildRequires: zlib-devel
 
 Requires:      daemonize
 Requires:      java-%{JAVA_VERSION}-openjdk
+Requires:      mesos = %{MESOS_VERSION}
 
 
 %description
@@ -117,7 +118,7 @@ Requires: docker-io
 %else
 Requires: docker
 %endif
-Requires: mesos
+Requires: mesos = %{MESOS_VERSION}
 %if 0%{?rhel} && 0%{?rhel} < 7
 Requires: python27
 %else

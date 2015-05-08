@@ -25,7 +25,7 @@ JAVA_OPTS=(
   -server
 
   # Location of libmesos-XXXX.so / libmesos-XXXX.dylib
-  -Djava.library.path='/usr/lib'
+  -Djava.library.path='/usr/lib;/usr/lib64'
 )
 
 # Flags control the behavior of the Aurora scheduler.
