@@ -55,11 +55,10 @@ mkdir: clean
 	mkdir -p $(RPM_TOPDIR)/rpmbuild/SRPMS
 
 tar_source: mkdir
-	if [ $$USING_GIT -eq 'true' ]; then \
-		cd `git rev-parse --show-toplevel` && git archive --format=tar \
-			--prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET) \
+	if [[ "$(USING_GIT)" == 'true' ]]; then \
+		cd `git rev-parse --show-toplevel` && git archive --format=tar --prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET); \
 	else \
-		tar cvzf $(SOURCE_TARGET) $(TOPDIR) \
+		tar cvzf $(SOURCE_TARGET) $(TOPDIR); \
 	fi
 
 srpm: tar_source
