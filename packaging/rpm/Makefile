@@ -13,7 +13,7 @@
 
 GIT_COMMIT ?= HEAD
 
-USING_GIT := $(shell git status >/dev/null 2>&1 && echo 'true' || echo 'false')
+USING_GIT ?= $(shell git status >/dev/null 2>&1 && echo 'true' || echo 'false')
 ifeq ($(USING_GIT),true)
 	VERSION_SUFFIX := .$(shell git rev-parse --short $(GIT_COMMIT))
 else
@@ -55,8 +55,12 @@ mkdir: clean
 	mkdir -p $(RPM_TOPDIR)/rpmbuild/SRPMS
 
 tar_source: mkdir
-	cd `git rev-parse --show-toplevel` && git archive --format=tar \
-		--prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET)
+	if [ $$USING_GIT -eq 'true' ]; then \
+		cd `git rev-parse --show-toplevel` && git archive --format=tar \
+			--prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET) \
+	else \
+		tar cvzf $(SOURCE_TARGET) $(TOPDIR) \
+	fi
 
 srpm: tar_source
 	rpmbuild $(RPM_OPTS) \
