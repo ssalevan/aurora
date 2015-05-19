@@ -12,33 +12,37 @@
 
 
 GIT_COMMIT ?= HEAD
-MESOS_VERSION ?= 0.22.0
 
-GIT_SHA := $(shell git rev-parse --short $(GIT_COMMIT))
-GIT_TOPDIR := $(shell git rev-parse --show-toplevel)
+USING_GIT := $(shell git status >/dev/null 2>&1 && echo 'true' || echo 'false')
+ifeq ($(USING_GIT),true)
+	VERSION_SUFFIX := .$(shell git rev-parse --short $(GIT_COMMIT))
+else
+	VERSION_SUFFIX :=
+endif
 
-DIST_DIR := $(GIT_TOPDIR)/dist
+CURRENT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-DATETIME := $(shell date +%Y%m%d%H%M)
-
-VERSION := $(shell cat $(GIT_TOPDIR)/.auroraversion | tr '-' '.')
-
+TOPDIR ?= $(CURRENT_DIR)/../..
+DIST_DIR ?= $(TOPDIR)/dist
 RPM_TOPDIR ?= $(DIST_DIR)
 
-SOURCE ?= $(SOURCE_TARGET)
+DATETIME ?= $(shell date +%Y%m%d%H%M)
 
-.PHONY: all nightly_version release_version get_source_target clean mkdir srpm nightly_srpm nightly_rpm release_srpm release_rpm tar_source
+SOURCE_TARGET ?= $(RPM_TOPDIR)/rpmbuild/SOURCES/aurora.tar.gz
+
+AURORA_VERSION ?= $(shell cat $(TOPDIR)/.auroraversion | tr '-' '.')
+MESOS_VERSION ?= $(shell sed -n 's/.*mesos\.native==\(.*\)/\1/p' $(TOPDIR)/3rdparty/python/requirements.txt)
+
+
+PHONY: all nightly_version release_version get_source_target clean mkdir srpm nightly_srpm nightly_rpm release_srpm release_rpm tar_source
 
 all: nightly_srpm
 
 nightly_version:
-	$(eval VERSION := $(VERSION).$(DATETIME).$(GIT_SHA))
+	$(eval AURORA_VERSION := $(AURORA_VERSION).$(DATETIME)$(VERSION_SUFFIX))
 
 release_version:
-	$(eval VERSION := $(VERSION))
-
-get_source_target:
-	$(eval SOURCE_TARGET := $(RPM_TOPDIR)/rpmbuild/SOURCES/aurora.tar.gz)
+	$(eval AURORA_VERSION := $(AURORA_VERSION))
 
 clean:
 	rm -rf $(RPM_TOPDIR)/rpmbuild
@@ -54,7 +58,7 @@ tar_source: mkdir
 	cd `git rev-parse --show-toplevel` && git archive --format=tar \
 		--prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET)
 
-srpm: get_source_target tar_source
+srpm: tar_source
 	rpmbuild $(RPM_OPTS) \
     --define "_topdir $(RPM_TOPDIR)" \
     --define "_builddir %{_topdir}/rpmbuild/BUILD" \
@@ -63,11 +67,11 @@ srpm: get_source_target tar_source
     --define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
     --define "_specdir %(pwd)" \
     --define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
-    --define "AURORA_VERSION $(VERSION)" \
+    --define "AURORA_VERSION $(AURORA_VERSION)" \
     --define "MESOS_VERSION $(MESOS_VERSION)" \
     --nodeps -bs aurora.spec
 
-rpm: get_source_target tar_source
+rpm: tar_source
 	rpmbuild $(RPM_OPTS) \
     --define "_topdir $(RPM_TOPDIR)" \
     --define "_builddir %{_topdir}/rpmbuild/BUILD" \
@@ -76,7 +80,7 @@ rpm: get_source_target tar_source
     --define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
     --define "_specdir %(pwd)" \
     --define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
-    --define "AURORA_VERSION $(VERSION)" \
+    --define "AURORA_VERSION $(AURORA_VERSION)" \
     --define "MESOS_VERSION $(MESOS_VERSION)" \
     -ba aurora.spec
 
