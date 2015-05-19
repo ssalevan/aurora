@@ -36,7 +36,7 @@ MESOS_VERSION ?= $(shell sed -n 's/.*mesos\.native==\(.*\)/\1/p' $(TOPDIR)/3rdpa
 
 PHONY: all nightly_version release_version get_source_target clean mkdir srpm nightly_srpm nightly_rpm release_srpm release_rpm tar_source
 
-all: nightly_srpm
+all: release_rpm
 
 nightly_version:
 	$(eval AURORA_VERSION := $(AURORA_VERSION).$(DATETIME)$(VERSION_SUFFIX))
