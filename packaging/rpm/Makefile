@@ -61,7 +61,7 @@ tar_source: mkdir
 	  tmp_dir=`mktemp -d '/tmp/aurorabuild.XXXXXX'`; \
 	  mkdir $${tmp_dir}/aurora; \
 	  cp -r $(TOPDIR)/* $${tmp_dir}/aurora; \
-	  cd $${tmp_dir}/aurora; \
+	  cd $${tmp_dir}; \
 		tar cvzf $(SOURCE_TARGET) aurora; \
 		rm -rf $${tmp_dir}/aurora; \
 	fi
