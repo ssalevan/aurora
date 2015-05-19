@@ -63,7 +63,7 @@ tar_source: mkdir
 	  cp -r $(TOPDIR)/* $${tmp_dir}/aurora; \
 	  cd $${tmp_dir}; \
 		tar cvzf $(SOURCE_TARGET) aurora; \
-		rm -rf $${tmp_dir}/aurora; \
+		rm -rf $${tmp_dir}; \
 	fi
 
 srpm: tar_source

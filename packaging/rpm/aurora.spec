@@ -42,7 +42,7 @@
 %endif
 
 %if %{?!PEX_BINARIES:1}0
-%global PEX_BINARIES aurora aurora_admin gc_executor thermos_executor thermos_runner thermos_observer
+%global PEX_BINARIES aurora aurora_admin gc_executor thermos thermos_executor thermos_runner thermos_observer
 %endif
 
 %if %{?!PYTHON_VERSION:1}0
@@ -107,7 +107,7 @@ schedulers.
 
 
 %package thermos
-Summary: Mesos executor that executes tasks scheduled by the Aurora scheduler
+Summary: Mesos executor that runs and monitors tasks scheduled by the Aurora scheduler
 Group: Applications/System
 
 Requires: cyrus-sasl
@@ -180,6 +180,7 @@ sed -i 's/    targetCompatibility =.*/    targetCompatibility = 1.8/' build.grad
 # Builds Aurora Thermos and GC executor PEX binaries.
 ./pants binary src/main/python/apache/aurora/executor/bin:gc_executor
 ./pants binary src/main/python/apache/aurora/executor/bin:thermos_executor
+./pants binary src/main/python/apache/thermos/cli/bin:thermos
 ./pants binary src/main/python/apache/thermos/bin:thermos_ckpt
 ./pants binary src/main/python/apache/thermos/bin:thermos_runner
 ./pants binary src/main/python/apache/thermos/observer/bin:thermos_observer
@@ -316,6 +317,7 @@ install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/cl
 %files thermos
 %defattr(-,root,root,-)
 %{_bindir}/gc_executor
+%{_bindir}/thermos
 %{_bindir}/thermos_executor
 %{_bindir}/thermos_observer
 %{_bindir}/thermos_runner

@@ -3,8 +3,8 @@
 # aurora Starts the Aurora task scheduler for Mesos.
 #
 # chkconfig:   345 55 25
-# description: This script starts the Aurora task scheduler for Apache Mesos, \
-#              used for scheduling and executing long-running services and \
+# description: This script starts the Aurora service scheduler for Apache Mesos, \
+#              used for scheduling and executing long-running tasks and \
 #              cron jobs.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
