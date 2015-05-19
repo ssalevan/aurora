@@ -58,39 +58,39 @@ tar_source: mkdir
 	if [[ "$(USING_GIT)" == 'true' ]]; then \
 		cd `git rev-parse --show-toplevel` && git archive --format=tar --prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET); \
 	else \
-	  tmp_dir=`mktemp -d '/tmp/aurorabuild.XXXXXX'`; \
-	  mkdir $${tmp_dir}/aurora; \
-	  cp -r $(TOPDIR)/* $${tmp_dir}/aurora; \
-	  cd $${tmp_dir}; \
+		tmp_dir=`mktemp -d '/tmp/aurorabuild.XXXXXX'`; \
+		mkdir $${tmp_dir}/aurora; \
+		cp -r $(TOPDIR)/* $${tmp_dir}/aurora; \
+		cd $${tmp_dir}; \
 		tar cvzf $(SOURCE_TARGET) aurora; \
 		rm -rf $${tmp_dir}; \
 	fi
 
 srpm: tar_source
 	rpmbuild $(RPM_OPTS) \
-    --define "_topdir $(RPM_TOPDIR)" \
-    --define "_builddir %{_topdir}/rpmbuild/BUILD" \
-    --define "_buildrootdir %{_topdir}/rpmbuild/BUILDROOT" \
-    --define "_rpmdir %{_topdir}/rpmbuild/RPMS" \
-    --define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
-    --define "_specdir %(pwd)" \
-    --define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
-    --define "AURORA_VERSION $(AURORA_VERSION)" \
-    --define "MESOS_VERSION $(MESOS_VERSION)" \
-    --nodeps -bs aurora.spec
+		--define "_topdir $(RPM_TOPDIR)" \
+		--define "_builddir %{_topdir}/rpmbuild/BUILD" \
+		--define "_buildrootdir %{_topdir}/rpmbuild/BUILDROOT" \
+		--define "_rpmdir %{_topdir}/rpmbuild/RPMS" \
+		--define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
+		--define "_specdir %(pwd)" \
+		--define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
+		--define "AURORA_VERSION $(AURORA_VERSION)" \
+		--define "MESOS_VERSION $(MESOS_VERSION)" \
+		--nodeps -bs aurora.spec
 
 rpm: tar_source
 	rpmbuild $(RPM_OPTS) \
-    --define "_topdir $(RPM_TOPDIR)" \
-    --define "_builddir %{_topdir}/rpmbuild/BUILD" \
-    --define "_buildrootdir %{_topdir}/rpmbuild/BUILDROOT" \
-    --define "_rpmdir %{_topdir}/rpmbuild/RPMS" \
-    --define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
-    --define "_specdir %(pwd)" \
-    --define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
-    --define "AURORA_VERSION $(AURORA_VERSION)" \
-    --define "MESOS_VERSION $(MESOS_VERSION)" \
-    -ba aurora.spec
+		--define "_topdir $(RPM_TOPDIR)" \
+		--define "_builddir %{_topdir}/rpmbuild/BUILD" \
+		--define "_buildrootdir %{_topdir}/rpmbuild/BUILDROOT" \
+		--define "_rpmdir %{_topdir}/rpmbuild/RPMS" \
+		--define "_srcrpmdir %{_topdir}/rpmbuild/SRPMS" \
+		--define "_specdir %(pwd)" \
+		--define "_sourcedir  %{_topdir}/rpmbuild/SOURCES" \
+		--define "AURORA_VERSION $(AURORA_VERSION)" \
+		--define "MESOS_VERSION $(MESOS_VERSION)" \
+		-ba aurora.spec
 
 nightly_srpm: nightly_version srpm
 
