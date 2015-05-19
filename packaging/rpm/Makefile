@@ -58,7 +58,11 @@ tar_source: mkdir
 	if [[ "$(USING_GIT)" == 'true' ]]; then \
 		cd `git rev-parse --show-toplevel` && git archive --format=tar --prefix=aurora/ $(GIT_COMMIT) | gzip > $(SOURCE_TARGET); \
 	else \
-		tar cvzf $(SOURCE_TARGET) $(TOPDIR); \
+	  tmp_dir=`mktemp -d '/tmp/aurorabuild.XXXXXX'`; \
+	  mkdir $tmp_dir/aurora; \
+	  cp -r $(TOPDIR)/* $tmp_dir/aurora; \
+		tar cvzf $(SOURCE_TARGET) $tmp_dir/aurora; \
+		rm -rf $tmp_dir/aurora; \
 	fi
 
 srpm: tar_source
