@@ -23,9 +23,11 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.inject.Inject;
 import com.twitter.common.inject.TimedInterceptor.Timed;
 
+import org.apache.aurora.gen.CronCollisionPolicy;
 import org.apache.aurora.gen.JobUpdateAction;
 import org.apache.aurora.gen.JobUpdateStatus;
 import org.apache.aurora.gen.MaintenanceMode;
+import org.apache.aurora.gen.ScheduleStatus;
 import org.apache.aurora.scheduler.storage.AttributeStore;
 import org.apache.aurora.scheduler.storage.CronJobStore;
 import org.apache.aurora.scheduler.storage.JobUpdateStore;
@@ -38,6 +40,7 @@ import org.apache.ibatis.builder.StaticSqlSource;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.mapping.MappedStatement.Builder;
 import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.guice.transactional.Transactional;
@@ -190,6 +193,10 @@ class DbStorage extends AbstractIdleService implements Storage {
     String createStatementName = "create_tables";
     configuration.setMapUnderscoreToCamelCase(true);
 
+    // The ReuseExecutor will cache jdbc Statements with equivalent SQL, improving performance
+    // slightly when redundant queries are made.
+    configuration.setDefaultExecutorType(ExecutorType.REUSE);
+
     addMappedStatement(
         configuration,
         createStatementName,
@@ -203,6 +210,10 @@ class DbStorage extends AbstractIdleService implements Storage {
       session.update(createStatementName);
     }
 
+    for (CronCollisionPolicy policy : CronCollisionPolicy.values()) {
+      enumValueMapper.addEnumValue("cron_policies", policy.getValue(), policy.name());
+    }
+
     for (MaintenanceMode mode : MaintenanceMode.values()) {
       enumValueMapper.addEnumValue("maintenance_modes", mode.getValue(), mode.name());
     }
@@ -213,6 +224,10 @@ class DbStorage extends AbstractIdleService implements Storage {
 
     for (JobUpdateAction action : JobUpdateAction.values()) {
       enumValueMapper.addEnumValue("job_instance_update_actions", action.getValue(), action.name());
+    }
+
+    for (ScheduleStatus status : ScheduleStatus.values()) {
+      enumValueMapper.addEnumValue("task_states", status.getValue(), status.name());
     }
   }
 

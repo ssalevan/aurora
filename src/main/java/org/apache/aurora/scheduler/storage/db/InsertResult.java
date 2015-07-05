@@ -18,11 +18,11 @@ package org.apache.aurora.scheduler.storage.db;
  * This class can be used as an additional {@link org.apache.ibatis.annotations.Param Param} to
  * retrieve the ID when the inserted object is not self-identifying.
  */
-class InsertResult {
+public class InsertResult {
   private long id = Long.MIN_VALUE;
   private boolean isSet;
 
-  long getId() {
+  public long getId() {
     if (!isSet) {
       throw new IllegalStateException("Missing ID value.");
     }

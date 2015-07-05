@@ -1,11 +1,8 @@
 org/apache/aurora/Protobufs$1
 org/apache/aurora/auth/UnsecureAuthModule$UnsecureCapabilityValidator$1
 org/apache/aurora/auth/UnsecureAuthModule$UnsecureCapabilityValidator$2
-org/apache/aurora/auth/UnsecureAuthModule$UnsecureSessionValidator
-org/apache/aurora/auth/UnsecureAuthModule$UnsecureSessionValidator$1
 org/apache/aurora/scheduler/app/SchedulerMain$2
 org/apache/aurora/scheduler/app/SchedulerMain$3
-org/apache/aurora/scheduler/async/GcExecutorLauncher$1
 org/apache/aurora/scheduler/async/OfferQueue$OfferQueueImpl$2
 org/apache/aurora/scheduler/base/Conversions$1
 org/apache/aurora/scheduler/base/Conversions$2
@@ -59,4 +56,5 @@ org/apache/aurora/scheduler/stats/AsyncStatsModule$OfferAdapter$1
 org/apache/aurora/scheduler/storage/log/LogStorage$RecoveryFailedException
 org/apache/aurora/scheduler/storage/mem/Util
 org/apache/aurora/scheduler/storage/mem/Util$1
+org/apache/aurora/scheduler/testing/FakeStatsProvider$3
 org/apache/aurora/scheduler/updater/UpdateConfigurationException

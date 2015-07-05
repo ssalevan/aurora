@@ -109,12 +109,17 @@ public class ForwardingStore implements
   }
 
   @Override
+  public Set<IJobKey> getJobKeys() {
+    return taskStore.getJobKeys();
+  }
+
+  @Override
   public Set<ILock> fetchLocks() {
     return lockStore.fetchLocks();
   }
 
   @Override
-  public Optional<ILock> fetchLock(ILockKey lockKey) {
+  public java.util.Optional<ILock> fetchLock(ILockKey lockKey) {
     return lockStore.fetchLock(lockKey);
   }
 
@@ -136,11 +141,6 @@ public class ForwardingStore implements
   @Override
   public Set<IHostAttributes> getHostAttributes() {
     return attributeStore.getHostAttributes();
-  }
-
-  @Override
-  public Optional<IJobUpdateKey> fetchUpdateKey(String updateId) {
-    return jobUpdateStore.fetchUpdateKey(updateId);
   }
 
   @Override

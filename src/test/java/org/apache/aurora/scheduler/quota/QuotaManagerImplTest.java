@@ -263,7 +263,7 @@ public class QuotaManagerImplTest extends EasyMockTest {
   @Test
   public void testCheckQuotaNoQuotaSet() {
     expect(storageUtil.quotaStore.fetchQuota(ROLE))
-        .andReturn(Optional.<IResourceAggregate>absent());
+        .andReturn(Optional.absent());
 
     expectNoTasks();
     expectNoJobUpdates();
@@ -502,7 +502,7 @@ public class QuotaManagerImplTest extends EasyMockTest {
     List<IJobUpdateSummary> summaries = buildJobUpdateSummaries(UPDATE_KEY);
     IJobUpdate update = buildJobUpdate(summaries.get(0), config, 1, config, 1);
     JobUpdate builder = update.newBuilder();
-    builder.getInstructions().setInitialState(ImmutableSet.<InstanceTaskConfig>of());
+    builder.getInstructions().setInitialState(ImmutableSet.of());
 
     expect(jobUpdateStore.fetchJobUpdateSummaries(updateQuery(config.getJob().getRole())))
         .andReturn(summaries).times(2);
@@ -669,10 +669,19 @@ public class QuotaManagerImplTest extends EasyMockTest {
 
   @Test
   public void testSaveQuotaPasses() throws Exception {
+    expectNoJobUpdates();
+    expectNoCronJobs();
+    IScheduledTask prodTask = createProdTask("foo", 1, 1, 1);
+    expectTasks(prodTask);
+    expectQuota(IResourceAggregate.build(new ResourceAggregate(1, 1, 1)));
+
     storageUtil.quotaStore.saveQuota(ROLE, QUOTA);
 
     control.replay();
-    quotaManager.saveQuota(ROLE, QUOTA, storageUtil.mutableStoreProvider.getQuotaStore());
+    quotaManager.saveQuota(
+        ROLE,
+        QUOTA,
+        storageUtil.mutableStoreProvider);
   }
 
   @Test(expected = QuotaException.class)
@@ -681,7 +690,7 @@ public class QuotaManagerImplTest extends EasyMockTest {
     quotaManager.saveQuota(
         ROLE,
         IResourceAggregate.build(new ResourceAggregate()),
-        storageUtil.mutableStoreProvider.getQuotaStore());
+        storageUtil.mutableStoreProvider);
   }
 
   @Test(expected = QuotaException.class)
@@ -690,7 +699,23 @@ public class QuotaManagerImplTest extends EasyMockTest {
     quotaManager.saveQuota(
         ROLE,
         IResourceAggregate.build(new ResourceAggregate(-2.0, 4, 5)),
-        storageUtil.mutableStoreProvider.getQuotaStore());
+        storageUtil.mutableStoreProvider);
+  }
+
+  @Test(expected = QuotaException.class)
+  public void testSaveQuotaFailsWhenBelowCurrentReservation() throws Exception {
+    expectNoJobUpdates();
+    expectNoCronJobs();
+    IScheduledTask prodTask = createProdTask("foo", 10, 100, 100);
+    expectTasks(prodTask);
+    expectQuota(IResourceAggregate.build(new ResourceAggregate(20, 200, 200)));
+
+    control.replay();
+
+    quotaManager.saveQuota(
+        ROLE,
+        IResourceAggregate.build(new ResourceAggregate(1, 1, 1)),
+        storageUtil.mutableStoreProvider);
   }
 
   @Test
@@ -838,7 +863,7 @@ public class QuotaManagerImplTest extends EasyMockTest {
 
   private IExpectationSetters<?> expectNoJobUpdates() {
     return expect(jobUpdateStore.fetchJobUpdateSummaries(
-        QuotaManagerImpl.updateQuery(ROLE))).andReturn(ImmutableList.<IJobUpdateSummary>of());
+        QuotaManagerImpl.updateQuery(ROLE))).andReturn(ImmutableList.of());
   }
 
   private IExpectationSetters<?> expectNoTasks() {
@@ -846,7 +871,7 @@ public class QuotaManagerImplTest extends EasyMockTest {
   }
 
   private IExpectationSetters<?> expectNoCronJobs() {
-    return expect(storageUtil.jobStore.fetchJobs()).andReturn(ImmutableSet.<IJobConfiguration>of());
+    return expect(storageUtil.jobStore.fetchJobs()).andReturn(ImmutableSet.of());
   }
 
   private IExpectationSetters<?> expectCronJobs(IJobConfiguration... jobs) {
@@ -864,7 +889,7 @@ public class QuotaManagerImplTest extends EasyMockTest {
 
   private IExpectationSetters<?> expectNoCronJob() {
     return expect(storageUtil.jobStore.fetchJob(anyObject(IJobKey.class)))
-        .andReturn(Optional.<IJobConfiguration>absent());
+        .andReturn(Optional.absent());
   }
 
   private IExpectationSetters<Optional<IResourceAggregate>> expectQuota(IResourceAggregate quota) {

@@ -32,6 +32,7 @@ from twitter.common.quantity import Amount, Time
 
 from apache.aurora.config.schema.base import MB, MesosTaskInstance, Process, Resources, Task
 from apache.aurora.executor.common.sandbox import DirectorySandbox
+from apache.aurora.executor.http_lifecycle import HttpLifecycleManager
 from apache.aurora.executor.thermos_task_runner import ThermosTaskRunner
 from apache.thermos.common.statuses import (
     INTERNAL_ERROR,
@@ -79,10 +80,12 @@ class TestThermosTaskRunnerIntegration(object):
       print('Saving executor logs in %s' % cls.LOG_DIR)
 
   @contextlib.contextmanager
-  def yield_runner(self, runner_class, portmap={}, clock=time, **bindings):
+  def yield_runner(self, runner_class, portmap=None, clock=time, **bindings):
     with contextlib.nested(temporary_dir(), temporary_dir()) as (td1, td2):
       sandbox = DirectorySandbox(td1)
       checkpoint_root = td2
+      if not portmap:
+        portmap = {}
 
       task_runner = runner_class(
           runner_pex=os.path.join('dist', 'thermos_runner.pex'),
@@ -195,7 +198,7 @@ class TestThermosTaskRunnerIntegration(object):
       assert task_runner.status.status == mesos_pb2.TASK_LOST
 
   @pytest.mark.skipif('True', reason='Flaky test (AURORA-1054)')
-  def test_integration_quitquitquit(self):
+  def test_integration_ignores_sigterm(self):
     ignorant_script = ';'.join([
         'import time, signal',
         'signal.signal(signal.SIGTERM, signal.SIG_IGN)',
@@ -215,32 +218,34 @@ class TestThermosTaskRunnerIntegration(object):
       assert task_runner.status is not None
       assert task_runner.status.status == mesos_pb2.TASK_KILLED
 
-  @patch('apache.aurora.executor.thermos_task_runner.HttpSignaler')
+  @patch('apache.aurora.executor.http_lifecycle.HttpSignaler')
   def test_integration_http_teardown(self, SignalerClass):
     signaler = SignalerClass.return_value
-    signaler.quitquitquit.return_value = (False, 'failed to dispatch')
-    signaler.abortabortabort.return_value = (True, None)
+    signaler.side_effect = lambda path, use_post_method: (path != '/quitquitquit', None)
 
     clock = Mock(wraps=time)
 
-    class ShortEscalationRunner(ThermosTaskRunner):
-      ESCALATION_WAIT = Amount(1, Time.MICROSECONDS)
-
     with self.yield_sleepy(
-        ShortEscalationRunner,
+        ThermosTaskRunner,
         portmap={'health': 3141},
         clock=clock,
         sleep=1000,
         exit_code=0) as task_runner:
 
-      task_runner.start()
+      class ImmediateHttpLifecycleManager(HttpLifecycleManager):
+        ESCALATION_WAIT = Amount(1, Time.MICROSECONDS)
+
+      http_task_runner = ImmediateHttpLifecycleManager(
+          task_runner, 3141, ['/quitquitquit', '/abortabortabort'], clock=clock)
+      http_task_runner.start()
       task_runner.forked.wait()
+      http_task_runner.stop()
 
-      task_runner.stop()
-
-      escalation_wait = call(ShortEscalationRunner.ESCALATION_WAIT.as_(Time.SECONDS))
+      escalation_wait = call(ImmediateHttpLifecycleManager.ESCALATION_WAIT.as_(Time.SECONDS))
       assert clock.sleep.mock_calls.count(escalation_wait) == 1
-      assert signaler.mock_calls == [call.quitquitquit(), call.abortabortabort()]
+      assert signaler.mock_calls == [
+        call('/quitquitquit', use_post_method=True),
+        call('/abortabortabort', use_post_method=True)]
 
   def test_thermos_normal_exit_status(self):
     with self.exit_with_status(0, TaskState.SUCCESS) as task_runner:

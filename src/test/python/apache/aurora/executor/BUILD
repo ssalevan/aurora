@@ -25,6 +25,7 @@ python_test_suite(
   dependencies = [
     ':executor_base',
     ':executor_vars',
+    ':http_lifecycle',
     ':status_manager',
     ':thermos_task_runner',
     'src/test/python/apache/aurora/executor/common:all',
@@ -35,27 +36,8 @@ python_test_suite(
 python_test_suite(
   name = 'executor-large',
   dependencies = [
-    ':gc_executor',
     ':thermos_executor',
   ]
-)
-
-
-python_tests(name = 'gc_executor',
-  sources = ['test_gc_executor.py'],
-  dependencies = [
-    '3rdparty/python:mock',
-    '3rdparty/python:twitter.common.app',
-    '3rdparty/python:twitter.common.concurrent',
-    '3rdparty/python:twitter.common.quantity',
-    '3rdparty/python:twitter.common.testing',
-    'src/main/python/apache/thermos/common:path',
-    'src/main/python/apache/thermos/config',
-    'src/main/python/apache/thermos/core:runner',
-    'api/src/main/thrift/org/apache/thermos:py-thrift',
-    'src/main/python/apache/aurora/executor:gc_executor',
-    'api/src/main/thrift/org/apache/aurora/gen:py-thrift',
-  ],
 )
 
 python_tests(name = 'thermos_executor',
@@ -121,4 +103,14 @@ python_tests(name = 'executor_vars',
     '3rdparty/python:twitter.common.contextutil',
     'src/main/python/apache/aurora/executor:executor_vars',
   ]
+)
+
+python_tests(name = 'http_lifecycle',
+  sources = ['test_http_lifecycle.py'],
+  dependencies = [
+    '3rdparty/python:mock',
+    'src/main/python/apache/aurora/config:schema',
+    'src/main/python/apache/aurora/executor:http_lifecycle',
+    'src/main/python/apache/aurora/executor:thermos_task_runner',
+  ],
 )

@@ -31,6 +31,7 @@ import org.apache.aurora.scheduler.async.OfferManager;
 import org.apache.aurora.scheduler.async.preemptor.Preemptor.PreemptorImpl;
 import org.apache.aurora.scheduler.base.TaskGroupKey;
 import org.apache.aurora.scheduler.base.Tasks;
+import org.apache.aurora.scheduler.state.StateChangeResult;
 import org.apache.aurora.scheduler.state.StateManager;
 import org.apache.aurora.scheduler.stats.CachedCounters;
 import org.apache.aurora.scheduler.storage.Storage;
@@ -112,7 +113,7 @@ public class PreemptorImplTest extends EasyMockTest {
   public void testPreemptTasksValidationFailed() throws Exception {
     expect(slotCache.getByValue(GROUP_KEY)).andReturn(ImmutableSet.of(PROPOSAL));
     slotCache.remove(PROPOSAL, GROUP_KEY);
-    expectSlotValidation(PROPOSAL, Optional.<ImmutableSet<PreemptionVictim>>absent());
+    expectSlotValidation(PROPOSAL, Optional.absent());
 
     control.replay();
 
@@ -152,10 +153,10 @@ public class PreemptorImplTest extends EasyMockTest {
     expect(stateManager.changeState(
         anyObject(Storage.MutableStoreProvider.class),
         eq(Tasks.id(preempted)),
-        eq(Optional.<ScheduleStatus>absent()),
+        eq(Optional.absent()),
         eq(ScheduleStatus.PREEMPTING),
-        EasyMock.<Optional<String>>anyObject()))
-        .andReturn(true);
+        EasyMock.anyObject()))
+        .andReturn(StateChangeResult.SUCCESS);
   }
 
   private static PreemptionProposal createPreemptionProposal(IScheduledTask task) {

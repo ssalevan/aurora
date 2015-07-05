@@ -15,7 +15,6 @@ package org.apache.aurora.scheduler.async;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.logging.Logger;
@@ -25,7 +24,6 @@ import javax.inject.Qualifier;
 import javax.inject.Singleton;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
 import com.google.common.base.Supplier;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.RateLimiter;
@@ -44,13 +42,12 @@ import com.twitter.common.util.Random;
 import com.twitter.common.util.TruncatedBinaryBackoff;
 
 import org.apache.aurora.scheduler.SchedulerServicesModule;
-import org.apache.aurora.scheduler.async.GcExecutorLauncher.GcExecutorSettings;
-import org.apache.aurora.scheduler.async.GcExecutorLauncher.RandomGcExecutorSettings;
 import org.apache.aurora.scheduler.async.OfferManager.OfferManagerImpl;
 import org.apache.aurora.scheduler.async.OfferManager.OfferReturnDelay;
 import org.apache.aurora.scheduler.async.RescheduleCalculator.RescheduleCalculatorImpl;
 import org.apache.aurora.scheduler.async.TaskGroups.TaskGroupsSettings;
 import org.apache.aurora.scheduler.async.TaskHistoryPruner.HistoryPrunnerSettings;
+import org.apache.aurora.scheduler.async.TaskReconciler.TaskReconcilerSettings;
 import org.apache.aurora.scheduler.async.TaskScheduler.TaskSchedulerImpl;
 import org.apache.aurora.scheduler.async.preemptor.BiCache;
 import org.apache.aurora.scheduler.async.preemptor.BiCache.BiCacheSettings;
@@ -173,13 +170,32 @@ public class AsyncModule extends AbstractModule {
   private static final Arg<Amount<Long, Time>> RESERVATION_DURATION =
       Arg.create(Amount.of(3L, Time.MINUTES));
 
-  @CmdLine(name = "executor_gc_interval",
-      help = "Max interval on which to run the GC executor on a host to clean up dead tasks.")
-  private static final Arg<Amount<Long, Time>> EXECUTOR_GC_INTERVAL =
-      Arg.create(Amount.of(1L, Time.HOURS));
+  // Reconciliation may create a big surge of status updates in a large cluster. Setting the default
+  // initial delay to 1 minute to ease up storage contention during scheduler start up.
+  @CmdLine(name = "reconciliation_initial_delay",
+      help = "Initial amount of time to delay task reconciliation after scheduler start up.")
+  private static final Arg<Amount<Long, Time>> RECONCILIATION_INITIAL_DELAY =
+      Arg.create(Amount.of(1L, Time.MINUTES));
 
-  @CmdLine(name = "gc_executor_path", help = "Path to the gc executor launch script.")
-  private static final Arg<String> GC_EXECUTOR_PATH = Arg.create(null);
+  @Positive
+  @CmdLine(name = "reconciliation_explicit_interval",
+      help = "Interval on which scheduler will ask Mesos for status updates of all non-terminal "
+      + "tasks known to scheduler.")
+  private static final Arg<Amount<Long, Time>> RECONCILIATION_EXPLICIT_INTERVAL =
+      Arg.create(Amount.of(60L, Time.MINUTES));
+
+  @Positive
+  @CmdLine(name = "reconciliation_implicit_interval",
+      help = "Interval on which scheduler will ask Mesos for status updates of all non-terminal "
+          + "tasks known to Mesos.")
+  private static final Arg<Amount<Long, Time>> RECONCILIATION_IMPLICIT_INTERVAL =
+      Arg.create(Amount.of(60L, Time.MINUTES));
+
+  @CmdLine(name = "reconciliation_schedule_spread",
+      help = "Difference between explicit and implicit reconciliation intervals intended to "
+          + "create a non-overlapping task reconciliation schedule.")
+  private static final Arg<Amount<Long, Time>> RECONCILIATION_SCHEDULE_SPREAD =
+      Arg.create(Amount.of(30L, Time.MINUTES));
 
   @Qualifier
   @Target({ FIELD, PARAMETER, METHOD }) @Retention(RUNTIME)
@@ -299,15 +315,17 @@ public class AsyncModule extends AbstractModule {
     install(new PrivateModule() {
       @Override
       protected void configure() {
-        bind(GcExecutorSettings.class).toInstance(new RandomGcExecutorSettings(
-            EXECUTOR_GC_INTERVAL.get(),
-            Optional.fromNullable(GC_EXECUTOR_PATH.get())));
-        bind(Executor.class).toInstance(executor);
-
-        bind(GcExecutorLauncher.class).in(Singleton.class);
-        expose(GcExecutorLauncher.class);
+        bind(TaskReconcilerSettings.class).toInstance(new TaskReconcilerSettings(
+            RECONCILIATION_INITIAL_DELAY.get(),
+            RECONCILIATION_EXPLICIT_INTERVAL.get(),
+            RECONCILIATION_IMPLICIT_INTERVAL.get(),
+            RECONCILIATION_SCHEDULE_SPREAD.get()));
+        bind(ScheduledExecutorService.class).toInstance(executor);
+        bind(TaskReconciler.class).in(Singleton.class);
+        expose(TaskReconciler.class);
       }
     });
+    SchedulerServicesModule.addSchedulerActiveServiceBinding(binder()).to(TaskReconciler.class);
 
     install(new PrivateModule() {
       @Override

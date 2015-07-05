@@ -15,6 +15,7 @@
 
 apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9
 echo deb https://get.docker.com/ubuntu docker main > /etc/apt/sources.list.d/docker.list
+add-apt-repository ppa:openjdk-r/ppa -y
 apt-get update
 apt-get -y install \
     bison \
@@ -25,12 +26,11 @@ apt-get -y install \
     libsasl2-dev \
     libsvn-dev \
     lxc-docker \
-    openjdk-7-jdk \
+    openjdk-8-jdk \
     python-dev \
     zookeeper
 
-# Ensure java 7 is the default java.
-update-alternatives --set java /usr/lib/jvm/java-7-openjdk-amd64/jre/bin/java
+update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
 
 readonly IP_ADDRESS=192.168.33.7
 
@@ -59,9 +59,6 @@ function prepare_extras() {
   popd
 
   sudo chown -R vagrant:vagrant aurora
-
-  # Install the upstart configurations.
-  cp /vagrant/examples/vagrant/upstart/*.conf /etc/init
 }
 
 function install_mesos {
@@ -115,13 +112,15 @@ rsync -urzvhl /vagrant/ /home/vagrant/aurora \
     --filter=':- /vagrant/.gitignore' \
     --exclude=.git \
     --delete
+# Install/update the upstart configurations.
+sudo cp /vagrant/examples/vagrant/upstart/*.conf /etc/init
 EOF
   chmod +x /usr/local/bin/update-sources
   update-sources
 }
 
-prepare_sources
 install_mesos
+prepare_sources
 prepare_extras
 install_cluster_config
 install_ssh_config

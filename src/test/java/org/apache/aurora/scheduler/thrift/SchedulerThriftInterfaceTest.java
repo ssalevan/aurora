@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.base.Optional;
-import com.google.common.base.Predicate;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -92,6 +91,7 @@ import org.apache.aurora.scheduler.quota.QuotaManager;
 import org.apache.aurora.scheduler.state.LockManager;
 import org.apache.aurora.scheduler.state.LockManager.LockException;
 import org.apache.aurora.scheduler.state.MaintenanceController;
+import org.apache.aurora.scheduler.state.StateChangeResult;
 import org.apache.aurora.scheduler.state.StateManager;
 import org.apache.aurora.scheduler.state.UUIDGenerator;
 import org.apache.aurora.scheduler.storage.Storage.StorageException;
@@ -101,7 +101,6 @@ import org.apache.aurora.scheduler.storage.entities.IInstanceKey;
 import org.apache.aurora.scheduler.storage.entities.IJobConfiguration;
 import org.apache.aurora.scheduler.storage.entities.IJobKey;
 import org.apache.aurora.scheduler.storage.entities.IJobUpdate;
-import org.apache.aurora.scheduler.storage.entities.ILock;
 import org.apache.aurora.scheduler.storage.entities.ILockKey;
 import org.apache.aurora.scheduler.storage.entities.IRange;
 import org.apache.aurora.scheduler.storage.entities.IResourceAggregate;
@@ -268,7 +267,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     IJobConfiguration job = IJobConfiguration.build(makeProdJob());
     SanitizedConfiguration sanitized = SanitizedConfiguration.fromUnsanitized(job);
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectNoCronJob();
     expect(taskIdGenerator.generate(sanitized.getJobConfig().getTaskConfig(), 1))
@@ -290,7 +289,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     IJobConfiguration job = IJobConfiguration.build(makeProdJob());
     SanitizedConfiguration sanitized = SanitizedConfiguration.fromUnsanitized(job);
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectNoCronJob();
     expect(taskIdGenerator.generate(sanitized.getJobConfig().getTaskConfig(), 1))
@@ -345,7 +344,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   public void testCreateJobFailsLockCheck() throws Exception {
     IJobConfiguration job = IJobConfiguration.build(makeJob());
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     expectLastCall().andThrow(new LockException("Invalid lock"));
 
     control.replay();
@@ -357,7 +356,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   public void testCreateJobFailsJobExists() throws Exception {
     IJobConfiguration job = IJobConfiguration.build(makeJob());
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active(), buildScheduledTask());
 
     control.replay();
@@ -369,7 +368,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   public void testCreateJobFailsCronJobExists() throws Exception {
     IJobConfiguration job = IJobConfiguration.build(makeJob());
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectCronJob();
 
@@ -384,7 +383,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
         makeJob(defaultTask(true), MAX_TASKS_PER_JOB.get() + 1));
 
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectNoCronJob();
     expect(quotaManager.checkInstanceAddition(
@@ -402,7 +401,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     IJobConfiguration job = IJobConfiguration.build(makeJob());
     SanitizedConfiguration sanitized = SanitizedConfiguration.fromUnsanitized(job);
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectNoCronJob();
     expect(quotaManager.checkInstanceAddition(
@@ -423,7 +422,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     IJobConfiguration job = IJobConfiguration.build(makeProdJob());
     SanitizedConfiguration sanitized = SanitizedConfiguration.fromUnsanitized(job);
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectNoCronJob();
     expect(taskIdGenerator.generate(sanitized.getJobConfig().getTaskConfig(), 1))
@@ -438,12 +437,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   private void assertMessageMatches(Response response, final String string) {
     // TODO(wfarner): This test coverage could be much better.  Circle back to apply more thorough
     // response contents testing throughout.
-    assertTrue(Iterables.any(response.getDetails(), new Predicate<ResponseDetail>() {
-      @Override
-      public boolean apply(ResponseDetail detail) {
-        return detail.getMessage().equals(string);
-      }
-    }));
+    assertTrue(Iterables.any(response.getDetails(), detail -> detail.getMessage().equals(string)));
   }
 
   @Test
@@ -563,15 +557,13 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
         .setDiskMb(1024)
         .setIsService(true)
         .setProduction(true)
-        .setRequestedPorts(ImmutableSet.<String>of())
-        .setTaskLinks(ImmutableMap.<String, String>of())
-        .setConstraints(ImmutableSet.of(
-            ConfigurationManager.hostLimitConstraint(1),
-            ConfigurationManager.rackLimitConstraint(1)))
+        .setRequestedPorts(ImmutableSet.of())
+        .setTaskLinks(ImmutableMap.of())
+        .setConstraints(ImmutableSet.of())
         .setMaxTaskFailures(1)
         .setEnvironment("devel");
 
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expectNoCronJob();
     expect(taskIdGenerator.generate(ITaskConfig.build(sanitized.getTaskConfig()), 1))
@@ -653,9 +645,9 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     expect(stateManager.changeState(
         storageUtil.mutableStoreProvider,
         TASK_ID,
-        Optional.<ScheduleStatus>absent(),
+        Optional.absent(),
         ScheduleStatus.KILLING,
-        killedByMessage(USER))).andReturn(true);
+        killedByMessage(USER))).andReturn(StateChangeResult.SUCCESS);
   }
 
   @Test
@@ -664,7 +656,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     expectAuth(ROOT, false);
     expectAuth(ROLE, true);
     storageUtil.expectTaskFetch(query, buildScheduledTask());
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     expectTransitionsToKilling();
 
     control.replay();
@@ -677,7 +669,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     Query.Builder query = Query.unscoped().byJob(JOB_KEY).active();
     expectAuth(ROOT, true);
     storageUtil.expectTaskFetch(query, buildScheduledTask());
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectTransitionsToKilling();
 
     control.replay();
@@ -690,7 +682,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     TaskQuery query = new TaskQuery().setJobName("job");
     expectAuth(ROOT, true);
     storageUtil.expectTaskFetch(Query.arbitrary(query).active(), buildScheduledTask());
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectTransitionsToKilling();
 
     control.replay();
@@ -703,7 +695,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     Query.Builder query = Query.unscoped().byJob(JOB_KEY);
     expectAuth(ROOT, true);
     storageUtil.expectTaskFetch(query.active(), buildScheduledTask());
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectTransitionsToKilling();
 
     control.replay();
@@ -720,8 +712,8 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     expectAuth(ROOT, false);
     expectAuth(ROLE, true);
     storageUtil.expectTaskFetch(query, buildScheduledTask(), task2);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
-    lockManager.validateIfLocked(key2, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
+    lockManager.validateIfLocked(key2, java.util.Optional.of(LOCK));
     expectLastCall().andThrow(new LockException("Failed lock check."));
 
     control.replay();
@@ -738,7 +730,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     // This query happens twice - once for authentication (without consistency) and once again
     // to perform the state change (within a write transaction).
     storageUtil.expectTaskFetch(query.active(), buildScheduledTask()).times(2);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectTransitionsToKilling();
 
     control.replay();
@@ -768,7 +760,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     expectAuth(ROOT, false);
     expectAuth(ImmutableSet.of("a", "b"), true);
     storageUtil.expectTaskFetch(query.active(), buildScheduledTask());
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectTransitionsToKilling();
 
     control.replay();
@@ -819,7 +811,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     Query.Builder query = Query.roleScoped("foo").active();
 
     storageUtil.expectTaskFetch(query, buildScheduledTask());
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectTransitionsToKilling();
 
     control.replay();
@@ -851,7 +843,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     quotaManager.saveQuota(
         ROLE,
         IResourceAggregate.build(resourceAggregate),
-        storageUtil.quotaStore);
+        storageUtil.mutableStoreProvider);
 
     control.replay();
 
@@ -867,7 +859,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     quotaManager.saveQuota(
         ROLE,
         IResourceAggregate.build(resourceAggregate),
-        storageUtil.quotaStore);
+        storageUtil.mutableStoreProvider);
 
     expectLastCall().andThrow(new QuotaManager.QuotaException("fail"));
 
@@ -883,9 +875,9 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     expect(stateManager.changeState(
         storageUtil.mutableStoreProvider,
         TASK_ID,
-        Optional.<ScheduleStatus>absent(),
+        Optional.absent(),
         ScheduleStatus.FAILED,
-        Optional.of(transitionMessage(USER).get()))).andReturn(true);
+        Optional.of(transitionMessage(USER).get()))).andReturn(StateChangeResult.SUCCESS);
 
     expectAuth(ROOT, true);
     expectAuth(ROOT, false);
@@ -894,7 +886,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
 
     assertOkResponse(thrift.forceTaskState(TASK_ID, status, SESSION));
     assertEquals(
-        response(AUTH_FAILED, Optional.<Result>absent(), AUTH_DENIED_MESSAGE),
+        response(AUTH_FAILED, Optional.absent(), AUTH_DENIED_MESSAGE),
         thrift.forceTaskState(TASK_ID, status, SESSION));
   }
 
@@ -973,7 +965,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     Set<Integer> shards = ImmutableSet.of(0);
 
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(
         Query.instanceScoped(JOB_KEY, shards).active(),
         buildScheduledTask());
@@ -981,9 +973,9 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     expect(stateManager.changeState(
         storageUtil.mutableStoreProvider,
         TASK_ID,
-        Optional.<ScheduleStatus>absent(),
+        Optional.absent(),
         ScheduleStatus.RESTARTING,
-        restartedByMessage(USER))).andReturn(true);
+        restartedByMessage(USER))).andReturn(StateChangeResult.SUCCESS);
 
     control.replay();
 
@@ -1007,7 +999,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     Set<Integer> shards = ImmutableSet.of(1, 6);
 
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     expectLastCall().andThrow(new LockException("test"));
 
     control.replay();
@@ -1022,7 +1014,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     Set<Integer> shards = ImmutableSet.of(1, 6);
 
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(Query.instanceScoped(JOB_KEY, shards).active());
 
     control.replay();
@@ -1035,7 +1027,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testReplaceCronTemplate() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     SanitizedConfiguration sanitized =
         SanitizedConfiguration.fromUnsanitized(IJobConfiguration.build(CRON_JOB));
 
@@ -1063,7 +1055,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testReplaceCronTemplateFailedLockValidation() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectLastCall().andThrow(new LockException("Failed lock."));
     control.replay();
 
@@ -1073,7 +1065,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testReplaceCronTemplateDoesNotExist() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     SanitizedConfiguration sanitized =
         SanitizedConfiguration.fromUnsanitized(IJobConfiguration.build(CRON_JOB));
 
@@ -1115,7 +1107,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testScheduleCronCreatesJob() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     SanitizedConfiguration sanitized =
         SanitizedConfiguration.fromUnsanitized(IJobConfiguration.build(CRON_JOB));
 
@@ -1133,7 +1125,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testScheduleCronFailsCreationDueToExistingNonCron() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     SanitizedConfiguration sanitized =
         SanitizedConfiguration.fromUnsanitized(IJobConfiguration.build(CRON_JOB));
 
@@ -1152,7 +1144,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testScheduleCronUpdatesJob() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     SanitizedConfiguration sanitized =
         SanitizedConfiguration.fromUnsanitized(IJobConfiguration.build(CRON_JOB));
 
@@ -1190,7 +1182,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testScheduleCronJobFailsLockValidation() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     expectLastCall().andThrow(new LockException("Failed lock"));
     control.replay();
     assertResponse(LOCK_ERROR, thrift.scheduleCronJob(CRON_JOB, LOCK.newBuilder(), SESSION));
@@ -1209,7 +1201,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testScheduleCronFailsQuotaCheck() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     SanitizedConfiguration sanitized =
         SanitizedConfiguration.fromUnsanitized(IJobConfiguration.build(CRON_JOB));
 
@@ -1224,7 +1216,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testDescheduleCronJob() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expect(cronJobManager.deleteJob(JOB_KEY)).andReturn(true);
     control.replay();
     assertResponse(OK, thrift.descheduleCronJob(CRON_JOB.getKey(), null, SESSION));
@@ -1241,7 +1233,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testDescheduleCronJobFailsLockValidation() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expectLastCall().andThrow(new LockException("Failed lock"));
     control.replay();
     assertResponse(LOCK_ERROR, thrift.descheduleCronJob(CRON_JOB.getKey(), null, SESSION));
@@ -1250,7 +1242,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testDescheduleNotACron() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     expect(cronJobManager.deleteJob(JOB_KEY)).andReturn(false);
     control.replay();
 
@@ -1279,7 +1271,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   public void testRewriteNoCommands() throws Exception {
     control.replay();
 
-    RewriteConfigsRequest request = new RewriteConfigsRequest(ImmutableList.<ConfigRewrite>of());
+    RewriteConfigsRequest request = new RewriteConfigsRequest(ImmutableList.of());
     assertResponse(INVALID_REQUEST, thrift.rewriteConfigs(request, SESSION));
   }
 
@@ -1422,7 +1414,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     JobConfiguration newJob = oldJob.deepCopy();
     newJob.getTaskConfig().setExecutorConfig(new ExecutorConfig("aurora", "rewritten"));
     expect(storageUtil.jobStore.fetchJob(IJobKey.build(oldJob.getKey())))
-        .andReturn(Optional.<IJobConfiguration>absent());
+        .andReturn(Optional.absent());
 
     control.replay();
 
@@ -1508,7 +1500,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   }
 
   private static Response okEmptyResponse() {
-    return response(OK, Optional.<Result>absent());
+    return response(OK, Optional.absent());
   }
 
   private static Response invalidResponse(String message) {
@@ -1549,7 +1541,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     ITaskConfig populatedTask = ITaskConfig.build(populatedTask());
     expectAuth(ROLE, true);
     expectNoCronJob();
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expect(taskIdGenerator.generate(populatedTask, 1))
         .andReturn(TASK_ID);
@@ -1573,7 +1565,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     AddInstancesConfig config = createInstanceConfig(populatedTask.newBuilder());
     expectAuth(ROLE, true);
     expectNoCronJob();
-    lockManager.validateIfLocked(LOCK_KEY, Optional.<ILock>absent());
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.empty());
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expect(taskIdGenerator.generate(populatedTask, 1))
         .andReturn(TASK_ID);
@@ -1635,7 +1627,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     AddInstancesConfig config = createInstanceConfig(defaultTask(true));
     expectAuth(ROLE, true);
     expectNoCronJob();
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     expectLastCall().andThrow(new LockException("Failed lock check."));
 
     control.replay();
@@ -1649,7 +1641,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     AddInstancesConfig config = createInstanceConfig(populatedTask.newBuilder());
     expectAuth(ROLE, true);
     expectNoCronJob();
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expect(quotaManager.checkInstanceAddition(
         anyObject(ITaskConfig.class),
@@ -1669,7 +1661,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     AddInstancesConfig config = createInstanceConfig(populatedTask.newBuilder());
     expectAuth(ROLE, true);
     expectNoCronJob();
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expect(taskIdGenerator.generate(populatedTask, 1))
         .andReturn(TASK_ID);
@@ -1686,7 +1678,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     AddInstancesConfig config = createInstanceConfig(populatedTask.newBuilder());
     expectAuth(ROLE, true);
     expectNoCronJob();
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     storageUtil.expectTaskFetch(Query.jobScoped(JOB_KEY).active());
     expect(taskIdGenerator.generate(populatedTask, 1))
         .andReturn(TASK_ID);
@@ -1742,7 +1734,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testReleaseLock() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     lockManager.releaseLock(LOCK);
 
     control.replay();
@@ -1768,7 +1760,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
   @Test
   public void testReleaseLockFailed() throws Exception {
     expectAuth(ROLE, true);
-    lockManager.validateIfLocked(LOCK_KEY, Optional.of(LOCK));
+    lockManager.validateIfLocked(LOCK_KEY, java.util.Optional.of(LOCK));
     expectLastCall().andThrow(new LockException("Failed"));
 
     control.replay();
@@ -2448,8 +2440,6 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
     return IJobUpdate.build(new JobUpdate()
         .setSummary(new JobUpdateSummary()
             .setKey(UPDATE_KEY.newBuilder())
-            .setJobKey(UPDATE_KEY.getJob().newBuilder())
-            .setUpdateId(UPDATE_KEY.getId())
             .setUser(ROLE_IDENTITY.getUser()))
         .setInstructions(new JobUpdateInstructions()
             .setSettings(buildJobUpdateSettings())
@@ -2466,7 +2456,7 @@ public class SchedulerThriftInterfaceTest extends EasyMockTest {
 
   private IExpectationSetters<?> expectNoCronJob() {
     return expect(storageUtil.jobStore.fetchJob(JOB_KEY))
-        .andReturn(Optional.<IJobConfiguration>absent());
+        .andReturn(Optional.absent());
   }
 
   private IExpectationSetters<?> expectInstanceQuotaCheck(

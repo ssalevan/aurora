@@ -146,25 +146,6 @@ assert_update_state() {
   fi
 }
 
-await_update_finished() {
-  local _jobkey=$1
-
-  local _matched=0
-  for i in $(seq 1 120); do
-    if [[ $(aurora update list $_jobkey --status active | wc -l) -eq 0 ]]; then
-      _matched=1
-      break
-    else
-      sleep 1
-    fi
-  done
-
-  if [[ $_matched -ne 1 ]]; then
-    echo "Timed out while waiting for update $_jobkey"
-    exit 1
-  fi
-}
-
 test_update() {
   local _jobkey=$1 _config=$2 _cluster=$3
 
@@ -178,8 +159,7 @@ test_update() {
   assert_update_state $_jobkey 'ROLL_FORWARD_PAUSED'
   aurora update resume $_jobkey
   assert_update_state $_jobkey 'ROLLING_FORWARD'
-
-  await_update_finished $_jobkey
+  aurora update wait $_jobkey $_update_id
 
   # Check that the update ended in ROLLED_FORWARD state.  Assumes the status is the last column.
   local status=$(aurora update info $_jobkey $_update_id | grep 'Current status' | awk '{print $NF}')
@@ -271,14 +251,24 @@ test_admin() {
   aurora_admin get_scheduler $_cluster | grep ":8081"
 }
 
-readonly RPC_DATA="[1,\"snapshot\",1,0,{}]"
+restore_netrc() {
+  mv ~/.netrc.bak ~/.netrc >/dev/null 2>&1 || true
+}
+
 test_basic_auth_unauthenticated() {
-  # TODO(ksweeney): Replace this with a call to the client removing the .netrc when AURORA-1248 is
-  # fixed.
-  [[ 401 == $(curl -w '%{http_code}\n' \
-    -o /dev/null \
-    -s 'http://localhost:8081/api' \
-    --data-binary "$RPC_DATA") ]]
+  local _cluster=$1 _role=$2 _env=$3 _job=$4
+  local _config=$5
+  local _jobkey="$_cluster/$_role/$_env/$_job"
+
+  mv ~/.netrc ~/.netrc.bak
+  trap restore_netrc EXIT
+
+  aurora job create $_jobkey $_config || retcode=$?
+  if [[ $retcode != 30 ]]; then
+    echo "Expected auth error exit code, got $retcode"
+    exit 1
+  fi
+  restore_netrc
 }
 
 RETCODE=1
@@ -324,7 +314,7 @@ sudo docker build -t http_example ${TEST_ROOT}
 test_http_example "${TEST_DOCKER_ARGS[@]}"
 
 test_admin "${TEST_ADMIN_ARGS[@]}"
-test_basic_auth_unauthenticated
+test_basic_auth_unauthenticated  "${TEST_ARGS[@]}"
 
 /vagrant/src/test/sh/org/apache/aurora/e2e/test_kerberos_end_to_end.sh
 RETCODE=0

@@ -13,8 +13,6 @@
  */
 package org.apache.aurora.scheduler.cron.quartz;
 
-import java.util.Set;
-
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableSet;
 import com.twitter.common.base.Supplier;
@@ -25,12 +23,11 @@ import org.apache.aurora.gen.AssignedTask;
 import org.apache.aurora.gen.CronCollisionPolicy;
 import org.apache.aurora.gen.ScheduleStatus;
 import org.apache.aurora.gen.ScheduledTask;
+import org.apache.aurora.scheduler.state.StateChangeResult;
 import org.apache.aurora.scheduler.state.StateManager;
 import org.apache.aurora.scheduler.storage.Storage;
 import org.apache.aurora.scheduler.storage.db.DbUtil;
-import org.apache.aurora.scheduler.storage.entities.IJobConfiguration;
 import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
-import org.apache.aurora.scheduler.storage.entities.ITaskConfig;
 import org.easymock.Capture;
 import org.easymock.EasyMock;
 import org.junit.Before;
@@ -70,25 +67,11 @@ public class AuroraCronJobTest extends EasyMockTest {
   }
 
   @Test
-  public void testInvalidConfigIsNoop() throws JobExecutionException {
-    control.replay();
-    storage.write(new Storage.MutateWork.NoResult.Quiet() {
-      @Override
-      protected void execute(MutableStoreProvider storeProvider) {
-        storeProvider.getCronJobStore().saveAcceptedJob(
-            IJobConfiguration.build(QuartzTestUtil.JOB.newBuilder().setCronSchedule(null)));
-      }
-    });
-
-    auroraCronJob.doExecute(QuartzTestUtil.AURORA_JOB_KEY);
-  }
-
-  @Test
   public void testEmptyStorage() throws JobExecutionException {
     stateManager.insertPendingTasks(
-        EasyMock.<MutableStoreProvider>anyObject(),
-        EasyMock.<ITaskConfig>anyObject(),
-        EasyMock.<Set<Integer>>anyObject());
+        EasyMock.anyObject(),
+        EasyMock.anyObject(),
+        EasyMock.anyObject());
     expectLastCall().times(3);
 
     control.replay();
@@ -118,17 +101,17 @@ public class AuroraCronJobTest extends EasyMockTest {
     Capture<Supplier<Boolean>> capture = createCapture();
 
     expect(stateManager.changeState(
-        EasyMock.<MutableStoreProvider>anyObject(),
+        EasyMock.anyObject(),
         eq(TASK_ID),
-        eq(Optional.<ScheduleStatus>absent()),
+        eq(Optional.absent()),
         eq(ScheduleStatus.KILLING),
         eq(AuroraCronJob.KILL_AUDIT_MESSAGE)))
-        .andReturn(true);
+        .andReturn(StateChangeResult.SUCCESS);
     backoffHelper.doUntilSuccess(EasyMock.capture(capture));
     stateManager.insertPendingTasks(
-        EasyMock.<MutableStoreProvider>anyObject(),
-        EasyMock.<ITaskConfig>anyObject(),
-        EasyMock.<Set<Integer>>anyObject());
+        EasyMock.anyObject(),
+        EasyMock.anyObject(),
+        EasyMock.anyObject());
 
     control.replay();
 

@@ -15,8 +15,8 @@ package org.apache.aurora.scheduler.storage.mem;
 
 import javax.inject.Singleton;
 
-import com.google.inject.AbstractModule;
 import com.google.inject.Key;
+import com.google.inject.PrivateModule;
 import com.twitter.common.inject.Bindings.KeyFactory;
 
 import org.apache.aurora.scheduler.storage.CronJobStore;
@@ -29,8 +29,7 @@ import static java.util.Objects.requireNonNull;
  * <p>
  * NOTE: These stores are being phased out in favor of database-backed stores.
  */
-public final class InMemStoresModule extends AbstractModule {
-
+public final class InMemStoresModule extends PrivateModule {
   private final KeyFactory keyFactory;
 
   public InMemStoresModule(KeyFactory keyFactory) {
@@ -42,11 +41,14 @@ public final class InMemStoresModule extends AbstractModule {
     bind(impl).in(Singleton.class);
     Key<T> key = keyFactory.create(binding);
     bind(key).to(impl);
+    expose(key);
   }
 
   @Override
   protected void configure() {
-    bindStore(CronJobStore.Mutable.class, MemJobStore.class);
     bindStore(TaskStore.Mutable.class, MemTaskStore.class);
+    expose(TaskStore.Mutable.class);
+    bindStore(CronJobStore.Mutable.class, MemCronJobStore.class);
+    expose(CronJobStore.Mutable.class);
   }
 }

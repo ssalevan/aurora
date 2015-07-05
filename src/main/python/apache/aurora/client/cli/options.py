@@ -71,7 +71,11 @@ def parse_instances(instances):
   result = set()
   for part in instances.split(','):
     x = part.split('-')
-    result.update(range(int(x[0]), int(x[-1]) + 1))
+    start = int(x[0])
+    end = int(x[-1]) + 1
+    if start >= end:
+      raise ArgumentTypeError('Invalid instance range: %s' % x)
+    result.update(range(start, end))
   return sorted(result)
 
 
@@ -143,8 +147,8 @@ def binding_parser(binding):
   the user from a list of "name=value" formatted strings to a list of the dictionaries
   expected by pystachio.
   """
-  binding_parts = binding.split("=")
-  if len(binding_parts) != 2:
+  binding_parts = binding.split("=", 1)
+  if len(binding_parts) < 2:
     raise ValueError('Binding parameter must be formatted name=value')
   try:
     ref = Ref.from_address(binding_parts[0])
@@ -168,14 +172,16 @@ BIND_OPTION = CommandOption('--bind', dest='bindings',
 
 BROWSER_OPTION = CommandOption('--open-browser', default=False, dest='open_browser',
     action='store_true',
-    help='open browser to view job page after job is created')
+    help='Open browser to view job page after job is created')
 
 
 CONFIG_ARGUMENT = CommandOption('config_file', type=str, metavar="pathname",
-    help='pathname of the aurora configuration file contain the job specification')
+    help='Pathname of the aurora configuration file contain the job specification')
+
 
 CONFIG_OPTION = CommandOption('--config', type=str, default=None, metavar="pathname",
-    help='pathname of the aurora configuration file contain the job specification')
+    help='Pathname of the aurora configuration file containing job specification'
+        'and possibly API hook definitions')
 
 EXECUTOR_SANDBOX_OPTION = CommandOption('--executor-sandbox', action='store_true',
      default=False, help='Run the command in the executor sandbox instead of the task sandbox')

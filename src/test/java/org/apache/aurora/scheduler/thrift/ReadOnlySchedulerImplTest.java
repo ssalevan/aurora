@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -39,6 +40,7 @@ import org.apache.aurora.gen.JobStats;
 import org.apache.aurora.gen.JobSummary;
 import org.apache.aurora.gen.JobUpdate;
 import org.apache.aurora.gen.JobUpdateDetails;
+import org.apache.aurora.gen.JobUpdateKey;
 import org.apache.aurora.gen.JobUpdateQuery;
 import org.apache.aurora.gen.JobUpdateSummary;
 import org.apache.aurora.gen.PendingReason;
@@ -57,6 +59,7 @@ import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.Query;
 import org.apache.aurora.scheduler.base.Query.Builder;
 import org.apache.aurora.scheduler.base.TaskGroupKey;
+import org.apache.aurora.scheduler.base.Tasks;
 import org.apache.aurora.scheduler.configuration.SanitizedConfiguration;
 import org.apache.aurora.scheduler.cron.CronPredictor;
 import org.apache.aurora.scheduler.cron.CrontabEntry;
@@ -192,7 +195,7 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
         .andReturn(IJobConfiguration.setFromBuilders(unownedCronJobOnly));
 
     storageUtil.expectTaskFetch(query);
-    expect(storageUtil.jobStore.fetchJobs()).andReturn(ImmutableSet.<IJobConfiguration>of());
+    expect(storageUtil.jobStore.fetchJobs()).andReturn(ImmutableSet.of());
 
     // Handle the case where a cron job has a running task (same JobKey present in both stores).
     storageUtil.expectTaskFetch(query, ownedCronJobScheduledTask);
@@ -213,7 +216,7 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
             .getJob()
             .getTaskConfig());
 
-    assertEquals(jobSummaryResponse(ImmutableSet.<JobSummary>of()), thrift.getJobSummary(ROLE));
+    assertEquals(jobSummaryResponse(ImmutableSet.of()), thrift.getJobSummary(ROLE));
 
     assertEquals(jobSummaryResponse(ownedCronJobSummaryWithRunningTask),
         thrift.getJobSummary(ROLE));
@@ -415,7 +418,7 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
     expect(storageUtil.jobStore.fetchJobs())
         .andReturn(IJobConfiguration.setFromBuilders(unownedCronJobOnly));
 
-    expect(storageUtil.jobStore.fetchJobs()).andReturn(ImmutableSet.<IJobConfiguration>of());
+    expect(storageUtil.jobStore.fetchJobs()).andReturn(ImmutableSet.of());
     storageUtil.expectTaskFetch(query);
 
     // Handle the case where a cron job has a running task (same JobKey present in both stores).
@@ -577,8 +580,7 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
     ImmutableList.Builder<JobUpdateSummary> builder = ImmutableList.builder();
     for (int i = 0; i < count; i++) {
       builder.add(new JobUpdateSummary()
-          .setUpdateId("id" + i)
-          .setJobKey(JOB_KEY.newBuilder())
+          .setKey(new JobUpdateKey(JOB_KEY.newBuilder(), "id" + 1))
           .setUser(USER));
     }
     return builder.build();
@@ -634,8 +636,10 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
     IScheduledTask task4 = IScheduledTask.build(new ScheduledTask()
         .setAssignedTask(new AssignedTask().setTask(immediateTaskConfigThree)));
 
-    storageUtil.expectTaskFetch(Query.unscoped(), task1, task2, task3, task4);
-
+    expect(storageUtil.taskStore.getJobKeys()).andReturn(
+        FluentIterable.from(ImmutableSet.of(task1, task2, task3, task4))
+            .transform(Tasks.SCHEDULED_TO_JOB_KEY)
+            .toSet());
     expect(storageUtil.jobStore.fetchJobs()).andReturn(IJobConfiguration.setFromBuilders(crons));
 
     RoleSummaryResult expectedResult = new RoleSummaryResult();
@@ -654,11 +658,11 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
   public void testEmptyConfigSummary() throws Exception {
     IJobKey key = JobKeys.from("test", "test", "test");
 
-    storageUtil.expectTaskFetch(Query.jobScoped(key).active(), ImmutableSet.<IScheduledTask>of());
+    storageUtil.expectTaskFetch(Query.jobScoped(key).active(), ImmutableSet.of());
 
     ConfigSummary summary = new ConfigSummary()
         .setKey(key.newBuilder())
-        .setGroups(Sets.<ConfigGroup>newHashSet());
+        .setGroups(Sets.newHashSet());
 
     ConfigSummaryResult expected = new ConfigSummaryResult().setSummary(summary);
 
@@ -671,7 +675,7 @@ public class ReadOnlySchedulerImplTest extends EasyMockTest {
   @Test
   public void testGetJobUpdateDetailsInvalidId() throws Exception {
     expect(storageUtil.jobUpdateStore.fetchJobUpdateDetails(UPDATE_KEY))
-        .andReturn(Optional.<IJobUpdateDetails>absent());
+        .andReturn(Optional.absent());
 
     control.replay();
 

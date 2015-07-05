@@ -26,6 +26,7 @@ python_library(
     'src/main/python/apache/aurora/executor/common:executor_detector',
     'src/main/python/apache/aurora/executor/common:executor_timeout',
     'src/main/python/apache/aurora/executor/common:health_checker',
+    'src/main/python/apache/aurora/executor/common:path_detector',
     'src/main/python/apache/aurora/executor/common:resource_manager',
     'src/main/python/apache/aurora/executor/common:sandbox',
     'src/main/python/apache/aurora/executor:executor_vars',
@@ -42,33 +43,5 @@ python_binary(
   dependencies = [
     '3rdparty/python:mesos.native',
     ':thermos_executor_source',
-  ]
-)
-
-python_library(
-  name = 'gc_executor_source',
-  sources = ['gc_executor_main.py'],
-  dependencies = [
-    # To prevent an alpha version of protobuf from being pulled down by pants we
-    # specify protobuf here. See AURORA-1128 for more details.
-    '3rdparty/python:protobuf',
-    '3rdparty/python:twitter.common.app',
-    '3rdparty/python:twitter.common.log',
-    '3rdparty/python:twitter.common.metrics',
-    'src/main/python/apache/thermos/common:constants',
-    'src/main/python/apache/thermos/monitoring:detector',
-    'src/main/python/apache/aurora/executor/common:executor_detector',
-    'src/main/python/apache/aurora/executor:executor_vars',
-    'src/main/python/apache/aurora/executor:gc_executor',
-  ]
-)
-
-python_binary(
-  name = 'gc_executor',
-  entry_point = 'apache.aurora.executor.bin.gc_executor_main:proxy_main',
-  always_write_cache = True,
-  dependencies = [
-    '3rdparty/python:mesos.native',
-    ':gc_executor_source',
   ]
 )

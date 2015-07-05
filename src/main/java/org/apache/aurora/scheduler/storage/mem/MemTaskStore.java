@@ -20,12 +20,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.inject.Inject;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
+import com.google.common.base.Supplier;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
@@ -40,11 +44,10 @@ import com.twitter.common.base.MorePreconditions;
 import com.twitter.common.inject.TimedInterceptor.Timed;
 import com.twitter.common.quantity.Amount;
 import com.twitter.common.quantity.Time;
-import com.twitter.common.stats.Stats;
+import com.twitter.common.stats.StatsProvider;
 
 import org.apache.aurora.gen.ScheduledTask;
 import org.apache.aurora.gen.TaskConfig;
-import org.apache.aurora.gen.TaskQuery;
 import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.Query;
 import org.apache.aurora.scheduler.base.Tasks;
@@ -54,8 +57,6 @@ import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
 import org.apache.aurora.scheduler.storage.entities.ITaskConfig;
 
 import static java.util.Objects.requireNonNull;
-
-import static com.google.common.base.CharMatcher.WHITESPACE;
 
 /**
  * An in-memory task store.
@@ -96,23 +97,32 @@ class MemTaskStore implements TaskStore.Mutable {
   // slave host.  This is deemed acceptable due to the fact that secondary key values are rarely
   // mutated in practice, and mutated in ways that are not impacted by this behavior.
   private final Map<String, Task> tasks = Maps.newConcurrentMap();
-  private final List<SecondaryIndex<?>> secondaryIndices = ImmutableList.of(
-      new SecondaryIndex<>(
-          Tasks.SCHEDULED_TO_JOB_KEY,
-          QUERY_TO_JOB_KEY,
-          Stats.exportLong("task_queries_by_job")),
-      new SecondaryIndex<>(
-          Tasks.SCHEDULED_TO_SLAVE_HOST,
-          QUERY_TO_SLAVE_HOST,
-          Stats.exportLong("task_queries_by_host")));
+  private final List<SecondaryIndex<?>> secondaryIndices;
 
   // An interner is used here to collapse equivalent TaskConfig instances into canonical instances.
   // Ideally this would fall out of the object hierarchy (TaskConfig being associated with the job
   // rather than the task), but we intuit this detail here for performance reasons.
   private final Interner<TaskConfig, String> configInterner = new Interner<>();
 
-  private final AtomicLong taskQueriesById = Stats.exportLong("task_queries_by_id");
-  private final AtomicLong taskQueriesAll = Stats.exportLong("task_queries_all");
+  private final AtomicLong taskQueriesById;
+  private final AtomicLong taskQueriesAll;
+
+  @Inject
+  MemTaskStore(StatsProvider statsProvider) {
+    secondaryIndices = ImmutableList.of(
+        new SecondaryIndex<>(
+            Tasks.SCHEDULED_TO_JOB_KEY,
+            QUERY_TO_JOB_KEY,
+            statsProvider,
+            "job"),
+        new SecondaryIndex<>(
+            Tasks.SCHEDULED_TO_SLAVE_HOST,
+            QUERY_TO_SLAVE_HOST,
+            statsProvider,
+            "host"));
+    taskQueriesById = statsProvider.makeCounter("task_queries_by_id");
+    taskQueriesAll = statsProvider.makeCounter("task_queries_all");
+  }
 
   @Timed("mem_storage_fetch_tasks")
   @Override
@@ -129,6 +139,14 @@ class MemTaskStore implements TaskStore.Mutable {
     }
 
     return result;
+  }
+
+  @Timed("mem_storage_get_job_keys")
+  @Override
+  public Set<IJobKey> getJobKeys() {
+    return FluentIterable.from(fetchTasks(Query.unscoped()))
+        .transform(Tasks.SCHEDULED_TO_JOB_KEY)
+        .toSet();
   }
 
   private final Function<IScheduledTask, Task> toTask =
@@ -226,48 +244,15 @@ class MemTaskStore implements TaskStore.Mutable {
     }
   }
 
-  private static Predicate<Task> queryFilter(final TaskQuery query) {
-    return new Predicate<Task>() {
-      @Override
-      public boolean apply(Task canonicalTask) {
-        IScheduledTask task = canonicalTask.storedTask;
-        ITaskConfig config = task.getAssignedTask().getTask();
-        if (query.getRole() != null
-            && !WHITESPACE.matchesAllOf(query.getRole())
-            && !query.getRole().equals(config.getJob().getRole())) {
-          return false;
-        }
-        if (query.getEnvironment() != null
-            && !query.getEnvironment().equals(config.getEnvironment())) {
-          return false;
-        }
-        if (query.getJobName() != null && !query.getJobName().equals(config.getJobName())) {
-          return false;
-        }
-
-        if (query.getJobKeysSize() > 0
-            && !query.getJobKeys().contains(config.getJob().newBuilder())) {
-          return false;
-        }
-        if (query.getTaskIds() != null && !query.getTaskIds().contains(Tasks.id(task))) {
-            return false;
-        }
-
-        if (query.getStatusesSize() > 0 && !query.getStatuses().contains(task.getStatus())) {
-          return false;
-        }
-        if (query.getSlaveHostsSize() > 0
-            && !query.getSlaveHosts().contains(task.getAssignedTask().getSlaveHost())) {
-          return false;
-        }
-        if (query.getInstanceIdsSize() > 0
-            && !query.getInstanceIds().contains(task.getAssignedTask().getInstanceId())) {
-          return false;
-        }
-
-        return true;
-      }
-    };
+  private static Predicate<Task> queryFilter(Query.Builder query) {
+    return Predicates.compose(
+        Util.queryFilter(query),
+        new Function<Task, IScheduledTask>() {
+          @Override
+          public IScheduledTask apply(Task canonicalTask) {
+            return canonicalTask.storedTask;
+          }
+        });
   }
 
   private Iterable<Task> fromIdIndex(Iterable<String> taskIds) {
@@ -302,7 +287,7 @@ class MemTaskStore implements TaskStore.Mutable {
       }
     }
 
-    return FluentIterable.from(from.get()).filter(queryFilter(query.get()));
+    return FluentIterable.from(from.get()).filter(queryFilter(query));
   }
 
   private static final Function<Task, IScheduledTask> TO_SCHEDULED =
@@ -347,6 +332,11 @@ class MemTaskStore implements TaskStore.Mutable {
     }
   }
 
+  @VisibleForTesting
+  static String getIndexSizeStatName(String name) {
+    return "task_store_index_" + name + "_items";
+  }
+
   /**
    * A non-unique secondary index on the task store.  Maps a custom key type to a set of task IDs.
    *
@@ -354,7 +344,7 @@ class MemTaskStore implements TaskStore.Mutable {
    */
   private static class SecondaryIndex<K> {
     private final Multimap<K, String> index =
-        Multimaps.synchronizedSetMultimap(HashMultimap.<K, String>create());
+        Multimaps.synchronizedSetMultimap(HashMultimap.create());
     private final Function<IScheduledTask, K> indexer;
     private final Function<Query.Builder, Optional<Set<K>>> queryExtractor;
     private final AtomicLong hitCount;
@@ -364,16 +354,26 @@ class MemTaskStore implements TaskStore.Mutable {
      *
      * @param indexer Indexing function.
      * @param queryExtractor Function to extract the keys relevant to a query.
-     * @param hitCount Counter for number of times the secondary index applies to a query.
+     * @param statsProvider Stats system to export metrics to.
+     * @param name Name to use in stats keys.
      */
     SecondaryIndex(
         Function<IScheduledTask, K> indexer,
         Function<Query.Builder, Optional<Set<K>>> queryExtractor,
-        AtomicLong hitCount) {
+        StatsProvider statsProvider,
+        String name) {
 
       this.indexer = indexer;
       this.queryExtractor = queryExtractor;
-      this.hitCount = hitCount;
+      this.hitCount = statsProvider.makeCounter("task_queries_by_" + name);
+      statsProvider.makeGauge(
+          getIndexSizeStatName(name),
+          new Supplier<Number>() {
+            @Override
+            public Number get() {
+              return index.size();
+            }
+          });
     }
 
     void insert(Iterable<IScheduledTask> tasks) {
@@ -396,7 +396,7 @@ class MemTaskStore implements TaskStore.Mutable {
     void remove(IScheduledTask task) {
       K key = indexer.apply(task);
       if (key != null) {
-        index.remove(key, task);
+        index.remove(key, Tasks.id(task));
       }
     }
 

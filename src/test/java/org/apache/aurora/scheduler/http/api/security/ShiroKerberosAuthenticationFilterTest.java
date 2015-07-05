@@ -29,7 +29,6 @@ import com.sun.jersey.api.client.ClientResponse;
 import org.apache.aurora.scheduler.http.JettyServerModuleTest;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationToken;
-import org.apache.shiro.authz.UnauthenticatedException;
 import org.apache.shiro.subject.Subject;
 import org.junit.Before;
 import org.junit.Test;
@@ -79,13 +78,14 @@ public class ShiroKerberosAuthenticationFilterTest extends JettyServerModuleTest
   }
 
   @Test
-  public void testPermitsUnauthenticated() throws ServletException, IOException {
-    mockServlet.service(anyObject(HttpServletRequest.class), anyObject(HttpServletResponse.class));
-
+  public void testDoesNotPermitUnauthenticated() throws ServletException, IOException {
     replayAndStart();
 
     ClientResponse clientResponse = getRequestBuilder(PATH).get(ClientResponse.class);
-    assertEquals(HttpServletResponse.SC_OK, clientResponse.getStatus());
+    assertEquals(HttpServletResponse.SC_UNAUTHORIZED, clientResponse.getStatus());
+    assertEquals(
+        ShiroKerberosAuthenticationFilter.NEGOTIATE,
+        clientResponse.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE));
   }
 
   @Test
@@ -129,20 +129,5 @@ public class ShiroKerberosAuthenticationFilterTest extends JettyServerModuleTest
         .get(ClientResponse.class);
 
     assertEquals(HttpServletResponse.SC_OK, clientResponse.getStatus());
-  }
-
-  @Test
-  public void testInterceptsUnauthenticatedException() throws ServletException, IOException {
-    mockServlet.service(anyObject(HttpServletRequest.class), anyObject(HttpServletResponse.class));
-    expectLastCall().andThrow(new UnauthenticatedException());
-
-    replayAndStart();
-
-    ClientResponse clientResponse = getRequestBuilder(PATH).get(ClientResponse.class);
-
-    assertEquals(HttpServletResponse.SC_UNAUTHORIZED, clientResponse.getStatus());
-    assertEquals(
-        ShiroKerberosAuthenticationFilter.NEGOTIATE,
-        clientResponse.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE));
   }
 }

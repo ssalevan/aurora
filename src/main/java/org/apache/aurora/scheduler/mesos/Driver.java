@@ -13,10 +13,13 @@
  */
 package org.apache.aurora.scheduler.mesos;
 
+import java.util.Collection;
+
 import com.google.common.util.concurrent.Service;
 
 import org.apache.mesos.Protos.OfferID;
 import org.apache.mesos.Protos.TaskInfo;
+import org.apache.mesos.Protos.TaskStatus;
 
 /**
  * Wraps the mesos Scheduler driver to ensure its used in a valid lifecycle; namely:
@@ -51,7 +54,26 @@ public interface Driver extends Service {
   void killTask(String taskId);
 
   /**
+   * Acknowledges the given {@code status} update.
+   *
+   * @param status The status to acknowledge.
+   */
+  void acknowledgeStatusUpdate(TaskStatus status);
+
+  /**
    * Blocks until the driver is no longer active.
    */
   void blockUntilStopped();
+
+  /**
+   * Aborts the driver.
+   */
+  void abort();
+
+  /**
+   * Requests task reconciliation.
+   *
+   * @param statuses Task statuses to reconcile.
+   */
+  void reconcileTasks(Collection<TaskStatus> statuses);
 }

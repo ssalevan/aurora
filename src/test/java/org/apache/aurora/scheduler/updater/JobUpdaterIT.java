@@ -69,6 +69,7 @@ import org.apache.aurora.scheduler.events.PubsubEvent;
 import org.apache.aurora.scheduler.mesos.Driver;
 import org.apache.aurora.scheduler.state.LockManager;
 import org.apache.aurora.scheduler.state.LockManagerImpl;
+import org.apache.aurora.scheduler.state.StateChangeResult;
 import org.apache.aurora.scheduler.state.StateManager;
 import org.apache.aurora.scheduler.state.StateManagerImpl;
 import org.apache.aurora.scheduler.state.UUIDGenerator;
@@ -125,7 +126,6 @@ import static org.apache.aurora.scheduler.storage.Storage.MutateWork.NoResult;
 import static org.apache.aurora.scheduler.updater.UpdateFactory.UpdateFactoryImpl.expandInstanceIds;
 import static org.easymock.EasyMock.expectLastCall;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class JobUpdaterIT extends EasyMockTest {
@@ -208,7 +208,7 @@ public class JobUpdaterIT extends EasyMockTest {
   @After
   public void validateExitState() {
     clock.assertEmpty();
-    assertEquals(ImmutableList.<ILock>of(), ImmutableList.copyOf(lockManager.getLocks()));
+    assertEquals(ImmutableList.of(), ImmutableList.copyOf(lockManager.getLocks()));
   }
 
   @Test(expected = UpdateStateException.class)
@@ -242,12 +242,12 @@ public class JobUpdaterIT extends EasyMockTest {
       storage.write(new NoResult.Quiet() {
         @Override
         protected void execute(Storage.MutableStoreProvider storeProvider) {
-          assertTrue(stateManager.changeState(
+          assertEquals(StateChangeResult.SUCCESS, stateManager.changeState(
               storeProvider,
               getTaskId(job, instanceId),
-              Optional.<ScheduleStatus>absent(),
+              Optional.absent(),
               s,
-              Optional.<String>absent()));
+              Optional.absent()));
         }
       });
     }
@@ -298,7 +298,7 @@ public class JobUpdaterIT extends EasyMockTest {
   }
 
   private IExpectationSetters<String> expectTaskKilled() {
-    driver.killTask(EasyMock.<String>anyObject());
+    driver.killTask(EasyMock.anyObject());
     return expectLastCall();
   }
 
@@ -1090,7 +1090,7 @@ public class JobUpdaterIT extends EasyMockTest {
     ILock lock;
     try {
       lock = lockManager.acquireLock(
-          ILockKey.build(LockKey.job(update.getSummary().getJobKey().newBuilder())), USER);
+          ILockKey.build(LockKey.job(update.getSummary().getKey().getJob().newBuilder())), USER);
     } catch (LockManager.LockException e) {
       throw Throwables.propagate(e);
     }
@@ -1158,7 +1158,7 @@ public class JobUpdaterIT extends EasyMockTest {
     });
 
     subscriber.startAsync().awaitRunning();
-    assertState(ERROR, ImmutableMultimap.<Integer, JobUpdateAction>of());
+    assertState(ERROR, ImmutableMultimap.of());
   }
 
   @Test
@@ -1339,7 +1339,7 @@ public class JobUpdaterIT extends EasyMockTest {
     releaseAllLocks();
 
     JobUpdate builder = makeJobUpdate(makeInstanceConfig(0, 0, OLD_CONFIG)).newBuilder();
-    builder.getSummary().setUpdateId("another update");
+    builder.getSummary().getKey().setId("another update");
     IJobUpdate update2 = IJobUpdate.build(builder);
 
     try {
@@ -1360,9 +1360,7 @@ public class JobUpdaterIT extends EasyMockTest {
   private static IJobUpdateSummary makeUpdateSummary() {
     return IJobUpdateSummary.build(new JobUpdateSummary()
         .setUser("user")
-        .setKey(UPDATE_ID.newBuilder())
-        .setJobKey(UPDATE_ID.getJob().newBuilder())
-        .setUpdateId(UPDATE_ID.getId()));
+        .setKey(UPDATE_ID.newBuilder()));
   }
 
   private static IJobUpdate makeJobUpdate(IInstanceTaskConfig... configs) {
@@ -1377,7 +1375,7 @@ public class JobUpdaterIT extends EasyMockTest {
                 .setRollbackOnFailure(true)
                 .setMaxWaitToInstanceRunningMs(RUNNING_TIMEOUT.as(Time.MILLISECONDS).intValue())
                 .setMinWaitInInstanceRunningMs(WATCH_TIMEOUT.as(Time.MILLISECONDS).intValue())
-                .setUpdateOnlyTheseInstances(ImmutableSet.<Range>of())));
+                .setUpdateOnlyTheseInstances(ImmutableSet.of())));
 
     for (IInstanceTaskConfig config : configs) {
       builder.getInstructions().addToInitialState(config.newBuilder());

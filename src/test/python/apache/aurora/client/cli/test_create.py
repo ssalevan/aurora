@@ -374,6 +374,7 @@ class TestClientCreateCommand(AuroraClientCommandTest):
         cmd = AuroraCommandLine()
         cmd.execute(['job', 'create', '--wait-until=RUNNING', '--bind', 'cluster_binding=west',
             '--bind', 'instances_binding=20', '--bind', 'TEST_BATCH=1',
+            '--bind', 'flags_binding=-some_flag=value',
             'west/bozo/test/hello',
             fp.name])
 
@@ -404,7 +405,7 @@ class TestClientCreateCommand(AuroraClientCommandTest):
         assert result == EXIT_INVALID_CONFIGURATION
       assert mock_context.get_out() == []
       assert mock_context.get_err() == [
-            "Error executing command: Error loading configuration: "
+            "Error loading configuration: "
             "TypeCheck(FAILED): MesosJob[update_config] failed: "
             "UpdateConfig[batch_size] failed: u'{{TEST_BATCH}}' not an integer"]
 

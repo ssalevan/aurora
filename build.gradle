@@ -15,7 +15,7 @@ import org.apache.aurora.build.CoverageReportCheck
 
 plugins {
   id 'com.eriwen.gradle.js' version '1.12.1'
-  id 'com.github.ben-manes.versions' version '0.8'
+  id 'com.github.ben-manes.versions' version '0.10.1'
   id 'com.github.hierynomus.license' version '0.11.0'
   id 'me.champeau.gradle.jmh' version '0.2.0'
 }
@@ -42,8 +42,8 @@ allprojects {
   }
 
   compileJava {
-    sourceCompatibility = 1.7
-    targetCompatibility = 1.7
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
   }
 
   group 'org.apache.aurora'
@@ -79,11 +79,11 @@ For more details, please see https://issues.apache.org/jira/browse/AURORA-1169
     }
   }
 
-  ext.junitRev = '4.11'
+  ext.junitRev = '4.12'
   ext.log4jRev = '1.2.17'
-  ext.gsonRev = '2.2.4'
+  ext.gsonRev = '2.3.1'
   ext.guavaRev = '16.0'
-  ext.slf4jRev = '1.6.6'
+  ext.slf4jRev = '1.7.12'
   ext.thriftRev = '0.9.1'
 
   configurations {
@@ -163,6 +163,8 @@ project(':api') {
 
   idea {
     module {
+      jdkName = '1.8'
+
       [thrift.genJavaDir, thriftEntities.genJavaDir].each {
         sourceDirs += it
         generatedSourceDirs += it
@@ -257,7 +259,7 @@ dependencies {
   compile "com.google.inject:guice:${guiceRev}"
   compile "com.google.inject.extensions:guice-assistedinject:${guiceRev}"
   compile 'com.google.protobuf:protobuf-java:2.5.0'
-  compile 'com.h2database:h2:1.4.177'
+  compile 'com.h2database:h2:1.4.187'
   compile "com.sun.jersey:jersey-core:${jerseyRev}"
   compile "com.sun.jersey:jersey-json:${jerseyRev}"
   compile "com.sun.jersey:jersey-server:${jerseyRev}"
@@ -278,7 +280,7 @@ dependencies {
   compile "org.eclipse.jetty:jetty-server:${jettyDep}"
   compile "org.eclipse.jetty:jetty-servlet:${jettyDep}"
   compile "org.eclipse.jetty:jetty-servlets:${jettyDep}"
-  compile 'org.mybatis:mybatis:3.2.8'
+  compile 'org.mybatis:mybatis:3.3.0'
   compile 'org.mybatis:mybatis-guice:3.6'
   compile 'org.quartz-scheduler:quartz:2.2.1'
   compile "org.slf4j:slf4j-jdk14:${slf4jRev}"
@@ -353,6 +355,10 @@ tasks.withType(FindBugs) {
 }
 
 pmd {
+  // Avoiding gradle's upgrade of PMD since there have been regressions in some rules post-5.1.1.
+  // For example, UnusedPrivateMethod raises some obvious false positives.
+  toolVersion = '5.1.1'
+
   sourceSets = [sourceSets.main]
   // PMD rule set names match XML files stored in the PMD jar.  For example, with 5.11 you can
   // see all the rules included with:
@@ -465,7 +471,7 @@ jmh {
     include = project.getProperty('benchmarks')
   }
   jmhVersion = '1.7.1'
-  jvmArgsPrepend = '-Xmx2g'
+  jvmArgsPrepend = '-Xmx3g'
   humanOutputFile = project.file("$jmhHumanOutputPath")
   resultsFile = project.file("$buildDir/reports/jmh/results.txt")
 }
