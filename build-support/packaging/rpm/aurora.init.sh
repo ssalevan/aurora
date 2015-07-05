@@ -35,12 +35,12 @@
 # Source LSB function library.
 . /lib/lsb/init-functions
 
+aurora_user="aurora"
 exec="/usr/bin/aurora-scheduler-startup"
 prog="aurora"
 logdir="/var/log/aurora"
 lockfile="/var/run/aurora.lock"
 pid_file="/var/run/aurora.pid"
-
 stderr_log="${logdir}/aurora.log"
 
 # Get a sane screen width
@@ -122,7 +122,7 @@ start() {
   [ -x ${exec} ] || exit 5
   [ -f ${config} ] || exit 6
   echo -n $"Starting $prog: "
-  start_daemon daemonize -e ${stderr_log} -p ${pid_file} ${exec}
+  start_daemon daemonize -u ${aurora_user} -e ${stderr_log} -p ${pid_file} ${exec}
   retval=$?
   [ $retval -eq 0 ] && (echo_success; touch $lockfile) || echo_failure
   echo

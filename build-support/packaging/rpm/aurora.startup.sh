@@ -1,3 +1,7 @@
+#!/bin/bash
+#
+# Starts up an Aurora scheduler process.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -10,19 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[Unit]
-Description=Aurora Scheduler
-After=network.target
-Wants=network.target
 
-[Service]
-ExecStart=/usr/bin/aurora-scheduler-startup
-ExecStop=/usr/bin/killall -s 15 aurora
-User=root
-Group=root
-Restart=always
-RestartSec=20
-LimitNOFILE=16384
+source /etc/sysconfig/aurora
 
-[Install]
-WantedBy=multi-user.target
+# Environment variables control the behavior of the Mesos scheduler driver (libmesos).
+export GLOG LIBPROCESS_PORT LIBPROCESS_IP
+export JAVA_OPTS="${JAVA_OPTS[*]}"
+
+exec /usr/lib/aurora/bin/aurora-scheduler "${AURORA_FLAGS[@]}"

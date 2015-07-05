@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-GLOG_V=0
+GLOG_v=0
 
 LIBPROCESS_PORT=8083
 LIBPROCESS_IP='127.0.0.1'

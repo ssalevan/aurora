@@ -17,6 +17,14 @@
 %global AURORA_VERSION 0.8.0
 %endif
 
+%if %{?!AURORA_USER:1}0
+%global AURORA_USER aurora
+%endif
+
+%if %{?!AURORA_GROUP:1}0
+%global AURORA_GROUP aurora
+%endif
+
 %if %{?!GRADLE_BASEURL:1}0
 %global GRADLE_BASEURL https://services.gradle.org/distributions
 %endif
@@ -26,11 +34,7 @@
 %endif
 
 %if %{?!JAVA_VERSION:!}0
-%if 0%{?fedora} && 0%{?fedora} > 19
 %global JAVA_VERSION 1.8.0
-%else
-%global JAVA_VERSION 1.7.0
-%endif
 %endif
 
 %if %{?!MESOS_BASEURL:1}0
@@ -163,13 +167,6 @@ make
 find . -name '*.egg' -exec cp -v {} ../.pants.d/python/eggs/ \;
 popd
 
-# Ensures that Java source compilation settings are set to Java 1.8-levels if we're
-# running in a new Fedora, where Java 1.7 is no longer packaged.
-%if 0%{?fedora} && 0%{?fedora} > 19
-sed -i 's/    sourceCompatibility =.*/    sourceCompatibility = 1.8/' build.gradle
-sed -i 's/    targetCompatibility =.*/    targetCompatibility = 1.8/' build.gradle
-%endif
-
 # Builds the Aurora scheduler.
 ./gradle-%{GRADLE_VERSION}/bin/gradle installDist
 
@@ -241,6 +238,13 @@ install -m 644 packaging/rpm/thermos-observer.logrotate %{buildroot}%{_sysconfdi
 
 install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/clusters.json
 
+
+%pre
+getent group %{AURORA_GROUP} > /dev/null || groupadd -r %{AURORA_GROUP}
+getent passwd %{AURORA_GROUP} > /dev/null || \
+    useradd -r -d %{_localstatedir}/lib/%{name} -g %{AURORA_GROUP} \
+    -s /bin/bash -c "Aurora Scheduler" %{AURORA_USER}
+exit 0
 
 # Pre/post installation scripts:
 %post
