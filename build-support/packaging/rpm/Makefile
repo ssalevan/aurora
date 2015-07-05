@@ -22,7 +22,7 @@ endif
 
 CURRENT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-TOPDIR ?= $(CURRENT_DIR)/../..
+TOPDIR ?= $(CURRENT_DIR)/../../..
 DIST_DIR ?= $(TOPDIR)/dist
 RPM_TOPDIR ?= $(DIST_DIR)
 
