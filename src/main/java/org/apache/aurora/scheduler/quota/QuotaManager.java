@@ -36,7 +36,7 @@ import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.Query;
 import org.apache.aurora.scheduler.base.ResourceAggregates;
 import org.apache.aurora.scheduler.storage.JobUpdateStore;
-import org.apache.aurora.scheduler.storage.QuotaStore;
+import org.apache.aurora.scheduler.storage.Storage.MutableStoreProvider;
 import org.apache.aurora.scheduler.storage.Storage.StoreProvider;
 import org.apache.aurora.scheduler.storage.entities.IAssignedTask;
 import org.apache.aurora.scheduler.storage.entities.IInstanceTaskConfig;
@@ -71,11 +71,13 @@ public interface QuotaManager {
    *
    * @param role Quota owner.
    * @param quota Quota to save.
-   * @param quoteStore A quota store.
+   * @param storeProvider A store provider to access quota and other data.
    * @throws QuotaException If provided quota specification is invalid.
    */
-  void saveQuota(String role, IResourceAggregate quota, QuotaStore.Mutable quoteStore)
-      throws QuotaException;
+  void saveQuota(
+      String role,
+      IResourceAggregate quota,
+      MutableStoreProvider storeProvider) throws QuotaException;
 
   /**
    * Gets {@code QuotaInfo} for the specified role.
@@ -139,7 +141,7 @@ public interface QuotaManager {
     public void saveQuota(
         final String ownerRole,
         final IResourceAggregate quota,
-        QuotaStore.Mutable quoteStore) throws QuotaException {
+        MutableStoreProvider storeProvider) throws QuotaException {
 
       if (!quota.isSetNumCpus() || !quota.isSetRamMb() || !quota.isSetDiskMb()) {
         throw new QuotaException("Missing quota specification(s) in: " + quota.toString());
@@ -149,12 +151,23 @@ public interface QuotaManager {
         throw new QuotaException("Negative values in: " + quota.toString());
       }
 
-      quoteStore.saveQuota(ownerRole, quota);
+      QuotaInfo info = getQuotaInfo(ownerRole, Optional.absent(), storeProvider);
+      IResourceAggregate prodConsumption = info.getProdConsumption();
+      if (quota.getNumCpus() < prodConsumption.getNumCpus()
+          || quota.getRamMb() < prodConsumption.getRamMb()
+          || quota.getDiskMb() < prodConsumption.getDiskMb()) {
+        throw new QuotaException(String.format(
+            "Quota: %s is less then current prod reservation: %s",
+            quota.toString(),
+            prodConsumption.toString()));
+      }
+
+      storeProvider.getQuotaStore().saveQuota(ownerRole, quota);
     }
 
     @Override
     public QuotaInfo getQuotaInfo(String role, StoreProvider storeProvider) {
-      return getQuotaInfo(role, Optional.<IJobUpdate>absent(), storeProvider);
+      return getQuotaInfo(role, Optional.absent(), storeProvider);
     }
 
     @Override
@@ -202,7 +215,7 @@ public interface QuotaManager {
       }
 
       QuotaInfo quotaInfo =
-          getQuotaInfo(cronConfig.getKey().getRole(), Optional.<IJobUpdate>absent(), storeProvider);
+          getQuotaInfo(cronConfig.getKey().getRole(), Optional.absent(), storeProvider);
 
       Optional<IJobConfiguration> oldCron =
           storeProvider.getCronJobStore().fetchJob(cronConfig.getKey());
@@ -265,14 +278,6 @@ public interface QuotaManager {
       return new QuotaInfo(quota, prodConsumed, nonProdConsumed);
     }
 
-    private static final Function<IJobConfiguration, ITaskConfig> JOB_TO_TASK =
-        new Function<IJobConfiguration, ITaskConfig>() {
-          @Override
-          public ITaskConfig apply(IJobConfiguration job) {
-            return job.getTaskConfig();
-          }
-        };
-
     private IResourceAggregate getConsumption(
         FluentIterable<IAssignedTask> tasks,
         Map<IJobKey, IJobUpdateInstructions> updatesByKey,
@@ -296,7 +301,7 @@ public interface QuotaManager {
       IResourceAggregate cronConsumption = getCronConsumption(
           Iterables.filter(
               cronTemplatesByKey.values(),
-              Predicates.compose(prodFilter, JOB_TO_TASK)),
+              Predicates.compose(prodFilter, IJobConfiguration::getTaskConfig)),
           filteredTasks.transform(ASSIGNED_TO_INFO));
 
       return add(nonCronConsumption, cronConsumption);
@@ -323,7 +328,7 @@ public interface QuotaManager {
           .transform(ASSIGNED_TO_INFO));
 
       final Predicate<IInstanceTaskConfig> instanceFilter =
-          Predicates.compose(configFilter, INSTANCE_CONFIG);
+          Predicates.compose(configFilter, IInstanceTaskConfig::getTask);
 
       IResourceAggregate updateConsumption =
           addAll(Iterables.transform(updatesByKey.values(), updateResources(instanceFilter)));
@@ -370,7 +375,7 @@ public interface QuotaManager {
             RangeSet<Integer> initialInstances = getInstanceIds(instructions.getInitialState());
             RangeSet<Integer> desiredInstances = getInstanceIds(instructions.isSetDesiredState()
                 ? ImmutableSet.of(instructions.getDesiredState())
-                : ImmutableSet.<IInstanceTaskConfig>of());
+                : ImmutableSet.of());
 
             int instanceId = task.getInstanceId();
             return !initialInstances.contains(instanceId) && !desiredInstances.contains(instanceId);
@@ -379,14 +384,6 @@ public interface QuotaManager {
         }
       };
     }
-
-    private static final Function<IJobUpdate, IJobUpdateInstructions> UPDATE_TO_INSTRUCTIONS =
-        new Function<IJobUpdate, IJobUpdateInstructions>() {
-          @Override
-          public IJobUpdateInstructions apply(IJobUpdate update) {
-            return update.getInstructions();
-          }
-        };
 
     private static Map<IJobKey, IJobUpdateInstructions> fetchActiveJobUpdates(
         final JobUpdateStore jobUpdateStore,
@@ -404,7 +401,7 @@ public interface QuotaManager {
           FluentIterable.from(jobUpdateStore.fetchJobUpdateSummaries(updateQuery(role)))
               .transform(fetchUpdate)
               .uniqueIndex(UPDATE_TO_JOB_KEY),
-          UPDATE_TO_INSTRUCTIONS);
+          IJobUpdate::getInstructions);
     }
 
     @VisibleForTesting
@@ -413,14 +410,6 @@ public interface QuotaManager {
           .setRole(role)
           .setUpdateStatuses(Updates.ACTIVE_JOB_UPDATE_STATES));
     }
-
-    private static final Function<IInstanceTaskConfig, ITaskConfig> INSTANCE_CONFIG =
-        new Function<IInstanceTaskConfig, ITaskConfig>() {
-          @Override
-          public ITaskConfig apply(IInstanceTaskConfig config) {
-            return config.getTask();
-          }
-        };
 
     private static final Function<ITaskConfig, IResourceAggregate> CONFIG_RESOURCES =
         new Function<ITaskConfig, IResourceAggregate>() {

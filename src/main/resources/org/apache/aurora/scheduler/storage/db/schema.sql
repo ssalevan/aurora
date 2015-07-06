@@ -72,8 +72,7 @@ CREATE TABLE host_attributes(
 
 CREATE TABLE host_attribute_values(
   id IDENTITY,
-  host_attribute_id BIGINT NOT NULL REFERENCES host_attributes(id)
-  ON DELETE CASCADE,
+  host_attribute_id BIGINT NOT NULL REFERENCES host_attributes(id) ON DELETE CASCADE,
   name VARCHAR NOT NULL,
   value VARCHAR NOT NULL,
 
@@ -108,8 +107,7 @@ CREATE TABLE job_updates(
   wait_for_batch_completion BOOLEAN NOT NULL,
   block_if_no_pulses_after_ms INT NULL,
 
-  -- TODO(wfarner): Convert this to UNIQUE(job_key_id, update_id) to complete AURORA-1139.
-  UNIQUE(update_id)
+  UNIQUE(update_id, job_key_id)
 );
 
 CREATE TABLE job_update_locks(
@@ -294,4 +292,23 @@ CREATE TABLE task_ports(
   port INT NOT NULL,
 
   UNIQUE(task_row_id, name)
+);
+
+CREATE TABLE cron_policies(
+  id INT PRIMARY KEY,
+  name VARCHAR NOT NULL,
+
+  UNIQUE(name)
+);
+
+CREATE TABLE cron_jobs(
+  id IDENTITY,
+  job_key_id INT NOT NULL REFERENCES job_keys(id),
+  creator_user VARCHAR NOT NULL,
+  cron_schedule VARCHAR NOT NULL,
+  cron_collision_policy INT REFERENCES cron_policies(id),
+  task_config_row_id INT NOT NULL REFERENCES task_configs(id),
+  instance_count INT NOT NULL,
+
+  UNIQUE(job_key_id)
 );

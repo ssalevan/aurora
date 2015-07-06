@@ -95,7 +95,7 @@ public class SnapshotStoreImplTest extends EasyMockTest {
     // A legacy attribute that has a maintenance mode set, but nothing else.  These should be
     // dropped.
     IHostAttributes legacyAttribute = IHostAttributes.build(
-        new HostAttributes("host", ImmutableSet.<Attribute>of()));
+        new HostAttributes("host", ImmutableSet.of()));
     StoredCronJob job = new StoredCronJob(
         new JobConfiguration().setKey(new JobKey("owner", "env", "name")));
     String frameworkId = "framework_id";
@@ -111,20 +111,13 @@ public class SnapshotStoreImplTest extends EasyMockTest {
     IJobUpdateKey updateId2 = makeKey("updateId2");
     IJobUpdateDetails updateDetails1 = IJobUpdateDetails.build(new JobUpdateDetails()
         .setUpdate(new JobUpdate().setSummary(
-            new JobUpdateSummary()
-                .setKey(updateId1.newBuilder())
-                .setUpdateId(updateId1.getId())
-                .setJobKey(updateId1.getJob().newBuilder())))
+            new JobUpdateSummary().setKey(updateId1.newBuilder())))
         .setUpdateEvents(ImmutableList.of(new JobUpdateEvent().setStatus(JobUpdateStatus.ERROR)))
         .setInstanceEvents(ImmutableList.of(new JobInstanceUpdateEvent().setTimestampMs(123L))));
 
     IJobUpdateDetails updateDetails2 = IJobUpdateDetails.build(new JobUpdateDetails()
         .setUpdate(new JobUpdate().setSummary(
-            new JobUpdateSummary()
-                // Deliberately not setting the key field here to validate backwards compatibility
-                // with data written before that field existed.
-                .setUpdateId(updateId2.getId())
-                .setJobKey(updateId2.getJob().newBuilder()))));
+            new JobUpdateSummary().setKey(updateId2.newBuilder()))));
 
     storageUtil.expectOperations();
     expect(storageUtil.taskStore.fetchTasks(Query.unscoped())).andReturn(tasks);
@@ -162,7 +155,7 @@ public class SnapshotStoreImplTest extends EasyMockTest {
     JobUpdate update2Expected = updateDetails2.getUpdate().newBuilder();
     update2Expected.getSummary().setKey(updateId2.newBuilder());
     storageUtil.jobUpdateStore.saveJobUpdate(
-        IJobUpdate.build(update2Expected), Optional.<String>absent());
+        IJobUpdate.build(update2Expected), Optional.absent());
 
     control.replay();
 

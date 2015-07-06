@@ -13,79 +13,28 @@
  */
 package org.apache.aurora.scheduler.storage.mem;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.base.Optional;
+import com.google.inject.AbstractModule;
+import com.google.inject.Module;
+import com.google.inject.util.Modules;
+import com.twitter.common.stats.StatsProvider;
 
-import org.apache.aurora.gen.JobConfiguration;
-import org.apache.aurora.scheduler.base.JobKeys;
-import org.apache.aurora.scheduler.storage.CronJobStore;
-import org.apache.aurora.scheduler.storage.entities.IJobConfiguration;
-import org.apache.aurora.scheduler.storage.entities.IJobKey;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.aurora.scheduler.storage.AbstractCronJobStoreTest;
+import org.apache.aurora.scheduler.storage.db.DbModule;
+import org.apache.aurora.scheduler.testing.FakeStatsProvider;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static com.twitter.common.inject.Bindings.KeyFactory.PLAIN;
 
-public class MemCronJobStoreTest {
-  private static final IJobConfiguration JOB_A = makeJob("a");
-  private static final IJobConfiguration JOB_B = makeJob("b");
-
-  private static final IJobKey KEY_A = JOB_A.getKey();
-  private static final IJobKey KEY_B = JOB_B.getKey();
-
-  private CronJobStore.Mutable store;
-
-  @Before
-  public void setUp() {
-    store = new MemJobStore();
-  }
-
-  @Test
-  public void testJobStore() {
-    assertNull(store.fetchJob(JobKeys.from("nobody", "nowhere", "noname")).orNull());
-    assertEquals(ImmutableSet.<IJobConfiguration>of(), store.fetchJobs());
-
-    store.saveAcceptedJob(JOB_A);
-    assertEquals(JOB_A, store.fetchJob(KEY_A).orNull());
-    assertEquals(ImmutableSet.of(JOB_A), store.fetchJobs());
-
-    store.saveAcceptedJob(JOB_B);
-    assertEquals(JOB_B, store.fetchJob(KEY_B).orNull());
-    assertEquals(ImmutableSet.of(JOB_A, JOB_B), store.fetchJobs());
-
-    store.removeJob(KEY_B);
-    assertEquals(ImmutableSet.of(JOB_A), store.fetchJobs());
-
-    store.deleteJobs();
-    assertEquals(ImmutableSet.<IJobConfiguration>of(), store.fetchJobs());
-  }
-
-  @Test
-  public void testJobStoreSameEnvironment() {
-    IJobConfiguration templateConfig = makeJob("labrat");
-    JobConfiguration prodBuilder = templateConfig.newBuilder();
-    prodBuilder.getKey().setEnvironment("prod");
-    IJobConfiguration prod = IJobConfiguration.build(prodBuilder);
-    JobConfiguration stagingBuilder = templateConfig.newBuilder();
-    stagingBuilder.getKey().setEnvironment("staging");
-    IJobConfiguration staging = IJobConfiguration.build(stagingBuilder);
-
-    store.saveAcceptedJob(prod);
-    store.saveAcceptedJob(staging);
-
-    assertNull(store.fetchJob(
-        IJobKey.build(templateConfig.getKey().newBuilder().setEnvironment("test"))).orNull());
-    assertEquals(prod, store.fetchJob(prod.getKey()).orNull());
-    assertEquals(staging, store.fetchJob(staging.getKey()).orNull());
-
-    store.removeJob(prod.getKey());
-    assertNull(store.fetchJob(prod.getKey()).orNull());
-    assertEquals(staging, store.fetchJob(staging.getKey()).orNull());
-  }
-
-  private static IJobConfiguration makeJob(String name) {
-    return IJobConfiguration.build(
-        new JobConfiguration().setKey(JobKeys.from("role-" + name, "env-" + name, name)
-            .newBuilder()));
+public class MemCronJobStoreTest extends AbstractCronJobStoreTest {
+  @Override
+  protected Module getStorageModule() {
+    return Modules.combine(
+        DbModule.testModule(PLAIN, Optional.of(new InMemStoresModule(PLAIN))),
+        new AbstractModule() {
+          @Override
+          protected void configure() {
+            bind(StatsProvider.class).toInstance(new FakeStatsProvider());
+          }
+        });
   }
 }

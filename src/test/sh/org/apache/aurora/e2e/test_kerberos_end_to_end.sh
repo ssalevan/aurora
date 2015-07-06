@@ -61,6 +61,16 @@ function snapshot_as {
   kdestroy
 }
 
+readonly H2_RESPONSE_OUTFILE="h2console-response.%s.json"
+function h2console_as {
+  local principal=$1
+  kinit -k -t "testdir/${principal}.keytab" $principal
+  curl -u : --negotiate -w '%{http_code}\n' \
+    -o $(printf $H2_RESPONSE_OUTFILE $principal) \
+    -s 'http://192.168.33.7:8081/h2console/'
+  kdestroy
+}
+
 function setup {
   cat >> $KRB5_CONFIG <<EOF
 [domain_realm]
@@ -103,6 +113,15 @@ function test_snapshot {
   grep -qv 'lacks permission' snapshot-response.root.json
 }
 
+function test_h2console {
+  h2console_as vagrant
+  grep -q 'Error 401 Unauthorized' h2console-response.vagrant.json
+  h2console_as unpriv
+  grep -q 'Error 401 Unauthorized' h2console-response.unpriv.json
+  h2console_as root
+  grep -q 'Welcome to H2' h2console-response.root.json
+}
+
 function test_clients {
   sudo cp /vagrant/examples/vagrant/clusters_kerberos.json /etc/aurora/clusters.json
 
@@ -110,6 +129,10 @@ function test_clients {
   aurora_admin set_quota devcluster kerberos-test 0.0 0MB 0MB /dev/null 2>&1 | grep 'OK' | true
   aurora update pause devcluster/role/env/job /dev/null 2>&1 | grep 'No active update found' | true
   kdestroy
+}
+
+function test_audit_logging_enabled {
+  curl -s localhost:8081/vars | grep -q 'shiro_audit_logging_enabled 1'
 }
 
 function tear_down {
@@ -127,8 +150,10 @@ function main {
   else
     trap tear_down EXIT
     setup
+    test_audit_logging_enabled
     test_snapshot
     test_clients
+    test_h2console
     set +x
     echo
     echo '*** OK (All tests passed) ***'

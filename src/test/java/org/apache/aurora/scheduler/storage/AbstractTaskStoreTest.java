@@ -26,6 +26,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Guice;
+import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.twitter.common.quantity.Amount;
 import com.twitter.common.quantity.Time;
@@ -45,6 +46,7 @@ import org.apache.aurora.scheduler.base.Query;
 import org.apache.aurora.scheduler.base.Tasks;
 import org.apache.aurora.scheduler.storage.TaskStore.Mutable.TaskMutation;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
+import org.apache.aurora.scheduler.storage.entities.IJobKey;
 import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
 import org.apache.aurora.scheduler.storage.entities.ITaskConfig;
 import org.apache.aurora.scheduler.storage.testing.StorageEntityUtil;
@@ -60,31 +62,33 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public abstract class AbstractTaskStoreTest {
-  private static final IHostAttributes HOST_A = IHostAttributes.build(
+  protected static final IHostAttributes HOST_A = IHostAttributes.build(
       new HostAttributes(
           "hostA",
           ImmutableSet.of(new Attribute("zone", ImmutableSet.of("1a"))))
           .setSlaveId("slaveIdA")
           .setMode(MaintenanceMode.NONE));
-  private static final IHostAttributes HOST_B = IHostAttributes.build(
+  protected static final IHostAttributes HOST_B = IHostAttributes.build(
       new HostAttributes(
           "hostB",
           ImmutableSet.of(new Attribute("zone", ImmutableSet.of("1a"))))
           .setSlaveId("slaveIdB")
           .setMode(MaintenanceMode.NONE));
   protected static final IScheduledTask TASK_A = createTask("a");
-  private static final IScheduledTask TASK_B =
+  protected static final IScheduledTask TASK_B =
       setContainer(createTask("b"), Container.mesos(new MesosContainer()));
-  private static final IScheduledTask TASK_C = createTask("c");
-  private static final IScheduledTask TASK_D = createTask("d");
+  protected static final IScheduledTask TASK_C = createTask("c");
+  protected static final IScheduledTask TASK_D = createTask("d");
 
+  protected Injector injector;
   protected Storage storage;
 
   protected abstract Module getStorageModule();
 
   @Before
   public void baseSetUp() {
-    storage = Guice.createInjector(getStorageModule()).getInstance(Storage.class);
+    injector = Guice.createInjector(getStorageModule());
+    storage = injector.getInstance(Storage.class);
     storage.prepare();
 
     storage.write(new Storage.MutateWork.NoResult.Quiet() {
@@ -106,7 +110,7 @@ public abstract class AbstractTaskStoreTest {
     });
   }
 
-  private void saveTasks(final IScheduledTask... tasks) {
+  protected void saveTasks(final IScheduledTask... tasks) {
     saveTasks(ImmutableSet.copyOf(tasks));
   }
 
@@ -140,7 +144,7 @@ public abstract class AbstractTaskStoreTest {
     });
   }
 
-  private void deleteTasks(final String... taskIds) {
+  protected void deleteTasks(final String... taskIds) {
     storage.write(new Storage.MutateWork.NoResult.Quiet() {
       @Override
       protected void execute(Storage.MutableStoreProvider storeProvider) {
@@ -149,7 +153,7 @@ public abstract class AbstractTaskStoreTest {
     });
   }
 
-  private void deleteAllTasks() {
+  protected void deleteAllTasks() {
     storage.write(new Storage.MutateWork.NoResult.Quiet() {
       @Override
       protected void execute(Storage.MutableStoreProvider storeProvider) {
@@ -196,12 +200,12 @@ public abstract class AbstractTaskStoreTest {
     // Explicitly call out the current differing behaviors for types of empty query conditions.
     // Specifically - null task IDs and empty task IDs are different than other 'IN' conditions..
     assertQueryResults(new TaskQuery().setTaskIds(null), TASK_A, TASK_B, TASK_C, TASK_D);
-    assertQueryResults(new TaskQuery().setTaskIds(ImmutableSet.<String>of()));
+    assertQueryResults(new TaskQuery().setTaskIds(ImmutableSet.of()));
     assertQueryResults(
-        new TaskQuery().setInstanceIds(ImmutableSet.<Integer>of()),
+        new TaskQuery().setInstanceIds(ImmutableSet.of()),
         TASK_A, TASK_B, TASK_C, TASK_D);
     assertQueryResults(
-        new TaskQuery().setStatuses(ImmutableSet.<ScheduleStatus>of()),
+        new TaskQuery().setStatuses(ImmutableSet.of()),
         TASK_A, TASK_B, TASK_C, TASK_D);
   }
 
@@ -503,6 +507,40 @@ public abstract class AbstractTaskStoreTest {
     saveTasks(updated);
     assertQueryResults(Query.taskScoped(Tasks.id(a)), updated);
     assertQueryResults(Query.slaveScoped(HOST_A.getHost()), updated);
+  }
+
+  private Set<IJobKey> getJobKeys() {
+    return storage.read(new Storage.Work.Quiet<Set<IJobKey>>() {
+      @Override
+      public Set<IJobKey> apply(Storage.StoreProvider storeProvider) {
+        return storeProvider.getTaskStore().getJobKeys();
+      }
+    });
+  }
+
+  private Set<IJobKey> toJobKeys(IScheduledTask... tasks) {
+    return FluentIterable.from(ImmutableSet.copyOf(tasks))
+        .transform(Tasks.SCHEDULED_TO_JOB_KEY)
+        .toSet();
+  }
+
+  @Test
+  public void testGetsJobKeys() {
+    assertEquals(ImmutableSet.of(), getJobKeys());
+    saveTasks(TASK_A);
+    assertEquals(toJobKeys(TASK_A), getJobKeys());
+    saveTasks(TASK_B, TASK_C);
+    assertEquals(toJobKeys(TASK_A, TASK_B, TASK_C), getJobKeys());
+    deleteTasks(Tasks.id(TASK_B));
+    assertEquals(toJobKeys(TASK_A, TASK_C), getJobKeys());
+    IJobKey multiInstanceJob = JobKeys.from("role", "env", "instances");
+    saveTasks(
+        makeTask("instance1", multiInstanceJob),
+        makeTask("instance2", multiInstanceJob),
+        makeTask("instance3", multiInstanceJob));
+    assertEquals(
+        ImmutableSet.builder().addAll(toJobKeys(TASK_A, TASK_C)).add(multiInstanceJob).build(),
+        getJobKeys());
   }
 
   @Ignore

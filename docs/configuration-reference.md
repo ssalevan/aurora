@@ -30,6 +30,7 @@ Aurora + Thermos Configuration Reference
     - [HealthCheckConfig Objects](#healthcheckconfig-objects)
     - [Announcer Objects](#announcer-objects)
     - [Container Objects](#container)
+    - [LifecycleConfig Objects](#lifecycleconfig-objects)
 - [Specifying Scheduling Constraints](#specifying-scheduling-constraints)
 - [Template Namespaces](#template-namespaces)
     - [mesos Namespace](#mesos-namespace)
@@ -277,6 +278,7 @@ Client applications with higher priority may force a shorter
 finalization wait (e.g. through parameters to `thermos kill`), so this
 is mostly a best-effort signal.
 
+
 ### Constraint Object
 
 Current constraint objects only support a single ordering constraint, `order`,
@@ -325,6 +327,7 @@ Job Schema
   ```production``` | Boolean |  Whether or not this is a production task backed by quota (Default: False). Production jobs may preempt any non-production job, and may only be preempted by production jobs in the same role and of higher priority. To run jobs at this level, the job role must have the appropriate quota. To grant quota to a particular role in production, operators use the ``aurora_admin set_quota`` command.
   ```health_check_config``` | ```heath_check_config``` object | Parameters for controlling a task's health checks via HTTP. Only used if a  health port was assigned with a command line wildcard.
   ```container``` | ```Container``` object | An optional container to run all processes inside of.
+  ```lifecycle``` | ```LifecycleConfig``` object | An optional task lifecycle configuration that dictates commands to be executed on startup/teardown.  HTTP lifecycle is enabled by default if the "health" port is requested.  See [LifecycleConfig Objects](#lifecycleconfig-objects) for more information.
 
 ### Services
 
@@ -359,8 +362,11 @@ Parameters for controlling a task's health checks via HTTP.
 | -------                        | :-------: | --------
 | ```initial_interval_secs```    | Integer   | Initial delay for performing an HTTP health check. (Default: 15)
 | ```interval_secs```            | Integer   | Interval on which to check the task's health via HTTP. (Default: 10)
-| ```timeout_secs```             | Integer   | HTTP request timeout. (Default: 1)
 | ```max_consecutive_failures``` | Integer   | Maximum number of consecutive failures that tolerated before considering a task unhealthy (Default: 0)
+| ```timeout_secs```             | Integer   | HTTP request timeout. (Default: 1)
+| ```endpoint```                 | String    | HTTP endpoint to check (Default: /health)
+| ```expected_response```        | String    | If not empty, fail the health check if the response differs. Case insensitive. (Default: ok)
+| ```expected_response_code```   | Integer   | If not zero, fail the health check if the response code differs. (Default: 0)
 
 ### Announcer Objects
 
@@ -414,6 +420,37 @@ Describes the container the job's processes will run inside.
   param          | type           | description
   -----          | :----:         | -----------
   ```image```    | String         | The name of the docker image to execute.  If the image does not exist locally it will be pulled with ```docker pull```.
+
+### LifecycleConfig Objects
+
+*Note: The only lifecycle configuration supported is the HTTP lifecycle via the HTTPLifecycleConfig.*
+
+  param          | type                | description
+  -----          | :----:              | -----------
+  ```http```     | HTTPLifecycleConfig | Configure the lifecycle manager to send lifecycle commands to the task via HTTP.
+
+### HTTPLifecycleConfig Objects
+
+  param          | type            | description
+  -----          | :----:          | -----------
+  ```port```     | String          | The named port to send POST commands (Default: health)
+  ```graceful_shutdown_endpoint``` | String | Endpoint to hit to indicate that a task should gracefully shutdown. (Default: /quitquitquit)
+  ```shutdown_endpoint``` | String | Endpoint to hit to give a task its final warning before being killed. (Default: /abortabortabort)
+
+#### graceful_shutdown_endpoint
+
+If the Job is listening on the port as specified by the HTTPLifecycleConfig
+(default: `health`), a HTTP POST request will be sent over localhost to this
+endpoint to request that the task gracefully shut itself down.  This is a
+courtesy call before the `shutdown_endpoint` is invoked a fixed amount of
+time later.
+
+#### shutdown_endpoint
+
+If the Job is listening on the port as specified by the HTTPLifecycleConfig
+(default: `health`), a HTTP POST request will be sent over localhost to this
+endpoint to request as a final warning before being shut down.  If the task
+does not shut down on its own after this, it will be forcefully killed
 
 
 Specifying Scheduling Constraints

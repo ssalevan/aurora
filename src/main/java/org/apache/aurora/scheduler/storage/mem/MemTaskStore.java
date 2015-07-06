@@ -48,7 +48,6 @@ import com.twitter.common.stats.StatsProvider;
 
 import org.apache.aurora.gen.ScheduledTask;
 import org.apache.aurora.gen.TaskConfig;
-import org.apache.aurora.gen.TaskQuery;
 import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.Query;
 import org.apache.aurora.scheduler.base.Tasks;
@@ -58,8 +57,6 @@ import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
 import org.apache.aurora.scheduler.storage.entities.ITaskConfig;
 
 import static java.util.Objects.requireNonNull;
-
-import static com.google.common.base.CharMatcher.WHITESPACE;
 
 /**
  * An in-memory task store.
@@ -142,6 +139,14 @@ class MemTaskStore implements TaskStore.Mutable {
     }
 
     return result;
+  }
+
+  @Timed("mem_storage_get_job_keys")
+  @Override
+  public Set<IJobKey> getJobKeys() {
+    return FluentIterable.from(fetchTasks(Query.unscoped()))
+        .transform(Tasks.SCHEDULED_TO_JOB_KEY)
+        .toSet();
   }
 
   private final Function<IScheduledTask, Task> toTask =
@@ -239,48 +244,15 @@ class MemTaskStore implements TaskStore.Mutable {
     }
   }
 
-  private static Predicate<Task> queryFilter(final TaskQuery query) {
-    return new Predicate<Task>() {
-      @Override
-      public boolean apply(Task canonicalTask) {
-        IScheduledTask task = canonicalTask.storedTask;
-        ITaskConfig config = task.getAssignedTask().getTask();
-        if (query.getRole() != null
-            && !WHITESPACE.matchesAllOf(query.getRole())
-            && !query.getRole().equals(config.getJob().getRole())) {
-          return false;
-        }
-        if (query.getEnvironment() != null
-            && !query.getEnvironment().equals(config.getEnvironment())) {
-          return false;
-        }
-        if (query.getJobName() != null && !query.getJobName().equals(config.getJobName())) {
-          return false;
-        }
-
-        if (query.getJobKeysSize() > 0
-            && !query.getJobKeys().contains(config.getJob().newBuilder())) {
-          return false;
-        }
-        if (query.getTaskIds() != null && !query.getTaskIds().contains(Tasks.id(task))) {
-            return false;
-        }
-
-        if (query.getStatusesSize() > 0 && !query.getStatuses().contains(task.getStatus())) {
-          return false;
-        }
-        if (query.getSlaveHostsSize() > 0
-            && !query.getSlaveHosts().contains(task.getAssignedTask().getSlaveHost())) {
-          return false;
-        }
-        if (query.getInstanceIdsSize() > 0
-            && !query.getInstanceIds().contains(task.getAssignedTask().getInstanceId())) {
-          return false;
-        }
-
-        return true;
-      }
-    };
+  private static Predicate<Task> queryFilter(Query.Builder query) {
+    return Predicates.compose(
+        Util.queryFilter(query),
+        new Function<Task, IScheduledTask>() {
+          @Override
+          public IScheduledTask apply(Task canonicalTask) {
+            return canonicalTask.storedTask;
+          }
+        });
   }
 
   private Iterable<Task> fromIdIndex(Iterable<String> taskIds) {
@@ -315,7 +287,7 @@ class MemTaskStore implements TaskStore.Mutable {
       }
     }
 
-    return FluentIterable.from(from.get()).filter(queryFilter(query.get()));
+    return FluentIterable.from(from.get()).filter(queryFilter(query));
   }
 
   private static final Function<Task, IScheduledTask> TO_SCHEDULED =
@@ -372,7 +344,7 @@ class MemTaskStore implements TaskStore.Mutable {
    */
   private static class SecondaryIndex<K> {
     private final Multimap<K, String> index =
-        Multimaps.synchronizedSetMultimap(HashMultimap.<K, String>create());
+        Multimaps.synchronizedSetMultimap(HashMultimap.create());
     private final Function<IScheduledTask, K> indexer;
     private final Function<Query.Builder, Optional<Set<K>>> queryExtractor;
     private final AtomicLong hitCount;

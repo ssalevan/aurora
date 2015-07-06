@@ -40,6 +40,28 @@ class HealthCheckConfig(Struct):
   interval_secs            = Default(Float, 10.0)
   timeout_secs             = Default(Float, 1.0)
   max_consecutive_failures = Default(Integer, 0)
+  endpoint                 = Default(String, '/health')
+  expected_response        = Default(String, 'ok')
+  expected_response_code   = Default(Integer, 0)
+
+
+class HttpLifecycleConfig(Struct):
+  # Named port to POST shutdown endpoints
+  port = Default(String, 'health')
+
+  # Endpoint to hit to indicate that a task should gracefully shutdown.
+  graceful_shutdown_endpoint = Default(String, '/quitquitquit')
+
+  # Endpoint to hit to give a task it's final warning before being killed.
+  shutdown_endpoint = Default(String, '/abortabortabort')
+
+
+class LifecycleConfig(Struct):
+  http = HttpLifecycleConfig
+
+
+DisableLifecycle = LifecycleConfig()
+DefaultLifecycleConfig = LifecycleConfig(http = HttpLifecycleConfig())
 
 
 class Announcer(Struct):
@@ -58,12 +80,13 @@ class Announcer(Struct):
 
 # The executorConfig populated inside of TaskConfig.
 class MesosTaskInstance(Struct):
-  task                       = Required(Task)
-  instance                   = Required(Integer)
-  role                       = Required(String)
-  announce                   = Announcer
-  environment                = Required(String)
-  health_check_config        = Default(HealthCheckConfig, HealthCheckConfig())
+  task                = Required(Task)
+  instance            = Required(Integer)
+  role                = Required(String)
+  announce            = Announcer
+  environment         = Required(String)
+  health_check_config = Default(HealthCheckConfig, HealthCheckConfig())
+  lifecycle           = LifecycleConfig
 
 
 class Docker(Struct):
@@ -95,11 +118,14 @@ class MesosJob(Struct):
   production                 = Default(Boolean, False)
   priority                   = Default(Integer, 0)
   health_check_config        = Default(HealthCheckConfig, HealthCheckConfig())
-  task_links                 = Map(String, String)
+  # TODO(wickman) Make Default(Any, LifecycleConfig()) once pystachio #17 is addressed.
+  lifecycle                  = Default(LifecycleConfig, DefaultLifecycleConfig)
+  task_links                 = Map(String, String)  # Unsupported.  See AURORA-739
 
   enable_hooks = Default(Boolean, False)  # enable client API hooks; from env python-list 'hooks'
 
   container = Container
+
 
 Job = MesosJob
 Service = Job(service = True)

@@ -348,34 +348,16 @@ public class LogStorageTest extends EasyMockTest {
     builder.add(createTransaction(Op.removeLock(removeLock)));
     storageUtil.lockStore.removeLock(ILockKey.build(removeLock.getLockKey()));
 
-    JobUpdate update = new JobUpdate()
-        .setSummary(new JobUpdateSummary()
-            .setKey(UPDATE_ID.newBuilder())
-            .setJobKey(UPDATE_ID.getJob().newBuilder())
-            .setUpdateId(UPDATE_ID.getId()));
+    JobUpdate update = new JobUpdate().setSummary(
+        new JobUpdateSummary().setKey(UPDATE_ID.newBuilder()));
     SaveJobUpdate saveUpdate = new SaveJobUpdate(update, "token");
     builder.add(createTransaction(Op.saveJobUpdate(saveUpdate)));
     storageUtil.jobUpdateStore.saveJobUpdate(
         IJobUpdate.build(saveUpdate.getJobUpdate()),
         Optional.of(saveUpdate.getLockToken()));
 
-    // Ensure that JobUpdateSummary.key is backfilled.
-    IJobUpdateKey updateId2 =
-        IJobUpdateKey.build(new JobUpdateKey(JOB_KEY.newBuilder(), "backfilled"));
-    JobUpdate legacyUpdate = new JobUpdate()
-        .setSummary(new JobUpdateSummary()
-            .setJobKey(updateId2.getJob().newBuilder())
-            .setUpdateId(updateId2.getId()));
-    SaveJobUpdate saveUpdateBackfilled = new SaveJobUpdate(legacyUpdate, "token2");
-    builder.add(createTransaction(Op.saveJobUpdate(saveUpdateBackfilled)));
-    JobUpdate legacyUpdateBackfilled = legacyUpdate.deepCopy();
-    legacyUpdateBackfilled.getSummary().setKey(updateId2.newBuilder());
-    storageUtil.jobUpdateStore.saveJobUpdate(
-        IJobUpdate.build(legacyUpdateBackfilled),
-        Optional.of(saveUpdateBackfilled.getLockToken()));
-
     SaveJobUpdateEvent saveUpdateEvent =
-        new SaveJobUpdateEvent(new JobUpdateEvent(), "update", UPDATE_ID.newBuilder());
+        new SaveJobUpdateEvent(new JobUpdateEvent(), UPDATE_ID.newBuilder());
     builder.add(createTransaction(Op.saveJobUpdateEvent(saveUpdateEvent)));
     storageUtil.jobUpdateStore.saveJobUpdateEvent(
         UPDATE_ID,
@@ -383,26 +365,11 @@ public class LogStorageTest extends EasyMockTest {
 
     SaveJobInstanceUpdateEvent saveInstanceEvent = new SaveJobInstanceUpdateEvent(
         new JobInstanceUpdateEvent(),
-        "update",
         UPDATE_ID.newBuilder());
     builder.add(createTransaction(Op.saveJobInstanceUpdateEvent(saveInstanceEvent)));
     storageUtil.jobUpdateStore.saveJobInstanceUpdateEvent(
         UPDATE_ID,
         IJobInstanceUpdateEvent.build(saveInstanceEvent.getEvent()));
-
-    // Backwards compatibility as part of AURORA-1093.  Exercises behavior to drop job
-    // update-related records that cannot be found based on their update ID string alone.
-    SaveJobInstanceUpdateEvent unknownSaveInstanceEvent =
-        new SaveJobInstanceUpdateEvent(new JobInstanceUpdateEvent(), "update5", null);
-    builder.add(createTransaction(Op.saveJobInstanceUpdateEvent(unknownSaveInstanceEvent)));
-    expect(storageUtil.jobUpdateStore.fetchUpdateKey("update5"))
-        .andReturn(Optional.<IJobUpdateKey>absent());
-
-    SaveJobUpdateEvent unknownSaveUpdateEvent =
-        new SaveJobUpdateEvent(new JobUpdateEvent(), "update6", null);
-    builder.add(createTransaction(Op.saveJobUpdateEvent(unknownSaveUpdateEvent)));
-    expect(storageUtil.jobUpdateStore.fetchUpdateKey("update6"))
-        .andReturn(Optional.<IJobUpdateKey>absent());
 
     builder.add(createTransaction(Op.pruneJobUpdateHistory(new PruneJobUpdateHistory(5, 10L))));
     expect(storageUtil.jobUpdateStore.pruneHistory(5, 10L))
@@ -423,7 +390,7 @@ public class LogStorageTest extends EasyMockTest {
       expect(entry.contents()).andReturn(ThriftBinaryCodec.encodeNonNull(logEntry));
     }
 
-    storageUtil.storage.bulkLoad(EasyMock.<MutateWork.NoResult<?>>anyObject());
+    storageUtil.storage.bulkLoad(EasyMock.anyObject());
     expectLastCall().andAnswer(new IAnswer<MutateWork.NoResult<?>>() {
       @Override
       public NoResult<?> answer() throws Throwable {
@@ -477,7 +444,7 @@ public class LogStorageTest extends EasyMockTest {
         }
       });
 
-      storageUtil.storage.bulkLoad(EasyMock.<MutateWork.NoResult<?>>anyObject());
+      storageUtil.storage.bulkLoad(EasyMock.anyObject());
       expectLastCall().andAnswer(new IAnswer<MutateWork.NoResult<?>>() {
         @Override
         public NoResult<?> answer() throws Throwable {
@@ -486,7 +453,7 @@ public class LogStorageTest extends EasyMockTest {
           return null;
         }
       });
-      expect(stream.readAll()).andReturn(Iterators.<Entry>emptyIterator());
+      expect(stream.readAll()).andReturn(Iterators.emptyIterator());
       final Capture<MutateWork<Void, RuntimeException>> recoveryWork = createCapture();
       expect(storageUtil.storage.write(capture(recoveryWork))).andAnswer(
           new IAnswer<Void>() {
@@ -898,7 +865,7 @@ public class LogStorageTest extends EasyMockTest {
       protected void setupExpectations() throws Exception {
         storageUtil.expectWrite();
         expect(storageUtil.attributeStore.getHostAttributes(host))
-            .andReturn(Optional.<IHostAttributes>absent());
+            .andReturn(Optional.absent());
 
         expect(storageUtil.attributeStore.getHostAttributes(host)).andReturn(hostAttributes);
 
@@ -917,7 +884,7 @@ public class LogStorageTest extends EasyMockTest {
       @Override
       protected void performMutations(MutableStoreProvider storeProvider) {
         AttributeStore.Mutable store = storeProvider.getAttributeStore();
-        assertEquals(Optional.<IHostAttributes>absent(), store.getHostAttributes(host));
+        assertEquals(Optional.absent(), store.getHostAttributes(host));
 
         assertTrue(store.saveHostAttributes(hostAttributes.get()));
 
@@ -932,21 +899,20 @@ public class LogStorageTest extends EasyMockTest {
 
   @Test
   public void testSaveUpdateWithLockToken() throws Exception {
-    saveAndAssertJobUpdate("id1", Optional.of("token"));
+    saveAndAssertJobUpdate(Optional.of("token"));
   }
 
   @Test
   public void testSaveUpdateWithNullLockToken() throws Exception {
-    saveAndAssertJobUpdate("id2", Optional.<String>absent());
+    saveAndAssertJobUpdate(Optional.absent());
   }
 
-  private void saveAndAssertJobUpdate(final String updateId, final Optional<String> lockToken)
+  private void saveAndAssertJobUpdate(final Optional<String> lockToken)
       throws Exception {
 
     final IJobUpdate update = IJobUpdate.build(new JobUpdate()
         .setSummary(new JobUpdateSummary()
-            .setUpdateId(updateId)
-            .setJobKey(JOB_KEY.newBuilder())
+            .setKey(UPDATE_ID.newBuilder())
             .setUser("user"))
         .setInstructions(new JobUpdateInstructions()
             .setDesiredState(new InstanceTaskConfig()
@@ -987,7 +953,6 @@ public class LogStorageTest extends EasyMockTest {
         storageUtil.jobUpdateStore.saveJobUpdateEvent(UPDATE_ID, event);
         streamMatcher.expectTransaction(Op.saveJobUpdateEvent(new SaveJobUpdateEvent(
             event.newBuilder(),
-            UPDATE_ID.getId(),
             UPDATE_ID.newBuilder()))).andReturn(position);
       }
 
@@ -1013,7 +978,6 @@ public class LogStorageTest extends EasyMockTest {
         streamMatcher.expectTransaction(Op.saveJobInstanceUpdateEvent(
             new SaveJobInstanceUpdateEvent(
                 event.newBuilder(),
-                UPDATE_ID.getId(),
                 UPDATE_ID.newBuilder())))
             .andReturn(position);
       }
