@@ -46,7 +46,7 @@
 %endif
 
 %if %{?!PEX_BINARIES:1}0
-%global PEX_BINARIES aurora aurora_admin gc_executor thermos thermos_executor thermos_runner thermos_observer
+%global PEX_BINARIES aurora aurora_admin thermos thermos_executor thermos_runner thermos_observer
 %endif
 
 %if %{?!PYTHON_VERSION:1}0
@@ -179,7 +179,6 @@ popd
 ./pants binary src/main/python/apache/aurora/client/cli:aurora
 
 # Builds Aurora Thermos and GC executor PEX binaries.
-./pants binary src/main/python/apache/aurora/executor/bin:gc_executor
 ./pants binary src/main/python/apache/aurora/executor/bin:thermos_executor
 ./pants binary src/main/python/apache/thermos/cli/bin:thermos
 ./pants binary src/main/python/apache/thermos/bin:thermos_ckpt
@@ -324,7 +323,6 @@ exit 0
 
 %files thermos
 %defattr(-,root,root,-)
-%{_bindir}/gc_executor
 %{_bindir}/thermos
 %{_bindir}/thermos_executor
 %{_bindir}/thermos_observer
