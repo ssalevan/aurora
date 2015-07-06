@@ -244,7 +244,7 @@ install -m 644 build-support/packaging/rpm/clusters.json %{buildroot}%{_sysconfd
 
 %pre
 getent group %{AURORA_GROUP} > /dev/null || groupadd -r %{AURORA_GROUP}
-getent passwd %{AURORA_GROUP} > /dev/null || \
+getent passwd %{AURORA_USER} > /dev/null || \
     useradd -r -d %{_localstatedir}/lib/%{name} -g %{AURORA_GROUP} \
     -s /bin/bash -c "Aurora Scheduler" %{AURORA_USER}
 exit 0
