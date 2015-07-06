@@ -17,7 +17,6 @@ Wants=network.target
 
 [Service]
 ExecStart=/usr/bin/aurora-scheduler-startup
-ExecStop=/usr/bin/killall -s 15 aurora
 User=aurora
 Group=aurora
 Restart=always

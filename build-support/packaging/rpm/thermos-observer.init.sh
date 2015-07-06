@@ -70,7 +70,7 @@ if [ -z "${BOOTUP:-}" ]; then
 fi
 
 function usage {
-  err "Starts the Aurora task scheduler for Mesos."
+  err "Starts the Thermos task observer."
   err "Usage: ${0} (restart|start|stop|status)"
 }
 

@@ -17,7 +17,6 @@ Wants=network.target
 
 [Service]
 ExecStart=/usr/bin/thermos-observer-startup
-ExecStop=/usr/bin/killall -s 15 thermos_observer
 User=root
 Group=root
 Restart=always
