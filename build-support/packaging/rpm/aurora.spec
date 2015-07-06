@@ -297,8 +297,8 @@ exit 0
 %defattr(-,root,root,-)
 %doc docs/*.md
 %{_bindir}/aurora-scheduler-startup
-%{_localstatedir}/lib/%{name}
-%{_localstatedir}/log/%{name}
+%attr(-,%{AURORA_USER},%{AURORA_GROUP}) %{_localstatedir}/lib/%{name}
+%attr(-,%{AURORA_USER},%{AURORA_GROUP}) %{_localstatedir}/log/%{name}
 %{_prefix}/lib/%{name}/bin/*
 %{_prefix}/lib/%{name}/etc/*
 %{_prefix}/lib/%{name}/lib/*
