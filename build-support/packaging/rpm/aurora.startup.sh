@@ -18,7 +18,10 @@
 source /etc/sysconfig/aurora
 
 # Environment variables control the behavior of the Mesos scheduler driver (libmesos).
-export GLOG LIBPROCESS_PORT LIBPROCESS_IP
+export GLOG_v LIBPROCESS_PORT LIBPROCESS_IP
 export JAVA_OPTS="${JAVA_OPTS[*]}"
+
+# Preferences Java 1.8 over any other Java version.
+export PATH=/usr/lib/jvm/java-1.8.0/bin:${PATH}
 
 exec /usr/lib/aurora/bin/aurora-scheduler "${AURORA_FLAGS[@]}"
