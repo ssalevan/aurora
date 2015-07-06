@@ -76,6 +76,10 @@ function usage {
   err "Usage: ${0} (restart|start|stop|status)"
 }
 
+function out {
+  printf '%s\n' "$*";
+}
+
 function msg {
   out "$*" >&2;
 }
