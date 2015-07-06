@@ -24,7 +24,7 @@ How to build using Make and rpmbuild
 
 ```bash
 cd build-support/packaging/rpm
-sudo yum install -y yum-utils
+sudo yum install -y make rpmbuild yum-utils
 make srpm
 sudo yum-builddep ../../../dist/rpmbuild/SRPMS/*
 ```
