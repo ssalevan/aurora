@@ -223,23 +223,23 @@ done
 
 # Installs all support scripting.
 %if 0%{?fedora} || 0%{?rhel} > 6
-install -m 644 packaging/rpm/%{name}.service %{buildroot}%{_sysconfdir}/systemd/system/%{name}.service
-install -m 644 packaging/rpm/thermos-observer.service %{buildroot}%{_sysconfdir}/systemd/system/thermos-observer.service
+install -m 644 build-support/packaging/rpm/%{name}.service %{buildroot}%{_sysconfdir}/systemd/system/%{name}.service
+install -m 644 build-support/packaging/rpm/thermos-observer.service %{buildroot}%{_sysconfdir}/systemd/system/thermos-observer.service
 %else
-install -m 755 packaging/rpm/%{name}.init.sh %{buildroot}%{_sysconfdir}/init.d/%{name}
-install -m 755 packaging/rpm/thermos-observer.init.sh %{buildroot}%{_sysconfdir}/init.d/thermos-observer
+install -m 755 build-support/packaging/rpm/%{name}.init.sh %{buildroot}%{_sysconfdir}/init.d/%{name}
+install -m 755 build-support/packaging/rpm/thermos-observer.init.sh %{buildroot}%{_sysconfdir}/init.d/thermos-observer
 %endif
 
-install -m 755 packaging/rpm/%{name}.startup.sh %{buildroot}%{_bindir}/%{name}-scheduler-startup
-install -m 755 packaging/rpm/thermos-observer.startup.sh %{buildroot}%{_bindir}/thermos-observer-startup
+install -m 755 build-support/packaging/rpm/%{name}.startup.sh %{buildroot}%{_bindir}/%{name}-scheduler-startup
+install -m 755 build-support/packaging/rpm/thermos-observer.startup.sh %{buildroot}%{_bindir}/thermos-observer-startup
 
-install -m 644 packaging/rpm/%{name}.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/%{name}
-install -m 644 packaging/rpm/thermos-observer.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/thermos-observer
+install -m 644 build-support/packaging/rpm/%{name}.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/%{name}
+install -m 644 build-support/packaging/rpm/thermos-observer.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/thermos-observer
 
-install -m 644 packaging/rpm/%{name}.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/%{name}
-install -m 644 packaging/rpm/thermos-observer.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/thermos-observer
+install -m 644 build-support/packaging/rpm/%{name}.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/%{name}
+install -m 644 build-support/packaging/rpm/thermos-observer.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/thermos-observer
 
-install -m 644 packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/clusters.json
+install -m 644 build-support/packaging/rpm/clusters.json %{buildroot}%{_sysconfdir}/%{name}/clusters.json
 
 
 %pre
