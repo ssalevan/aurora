@@ -117,7 +117,7 @@ Group: Applications/System
 
 Requires: cyrus-sasl
 Requires: daemonize
-%ifarch x86_64
+%if 0%{?rhel} && 0%{?rhel} < 7
 Requires: docker-io
 %else
 Requires: docker
@@ -151,6 +151,9 @@ export XDG_DATA_DIRS=/opt/rh/python27/root/usr/share${XDG_DATA_DIRS:+:${XDG_DATA
 # For pkg-config
 export PKG_CONFIG_PATH=/opt/rh/python27/root/usr/lib64/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}
 %endif
+
+# Preferences Java 1.8 over any other Java version.
+export PATH=/usr/lib/jvm/java-1.8.0/bin:${PATH}
 
 # Downloads Gradle executable.
 wget %{GRADLE_BASEURL}/gradle-%{GRADLE_VERSION}-bin.zip
