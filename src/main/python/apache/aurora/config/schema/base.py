@@ -120,6 +120,7 @@ class Parameter(Struct):
 
 class Docker(Struct):
   image = Required(String)
+  force_pull_image = Default(Boolean, False)
   parameters = Default(List(Parameter), [])
 
 

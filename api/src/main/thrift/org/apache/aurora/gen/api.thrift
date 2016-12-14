@@ -221,6 +221,8 @@ struct DockerContainer {
   1: string image
   /** The arbitrary parameters to pass to container */
   2: optional list<DockerParameter> parameters
+  /** Whether to forcibly pull the Docker image from the Hub */
+  3: optional bool forcePullImage
 }
 
 /** Describes a container to be used in a task */

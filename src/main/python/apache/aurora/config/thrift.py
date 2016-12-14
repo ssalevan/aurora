@@ -144,7 +144,8 @@ def create_docker_container(container):
   if container.parameters() is not Empty:
     for p in fully_interpolated(container.parameters()):
       params.append(DockerParameter(p['name'], p['value']))
-  return DockerContainer(fully_interpolated(container.image()), params)
+  return DockerContainer(fully_interpolated(container.image()), params,
+      fully_interpolated(container.force_pull_image()))
 
 
 def create_container_config(container):

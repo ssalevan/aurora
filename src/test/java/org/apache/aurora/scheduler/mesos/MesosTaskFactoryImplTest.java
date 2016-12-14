@@ -108,6 +108,11 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
               .setContainer(Container.docker(
                   new DockerContainer("testimage").setParameters(
                       ImmutableList.of(new DockerParameter("label", "testparameter")))))));
+  private static final IAssignedTask TASK_WITH_DOCKER_FORCE_PULL = IAssignedTask.build(TASK.newBuilder()
+      .setTask(
+          new TaskConfig(TASK.getTask().newBuilder())
+              .setContainer(Container.docker(
+                  new DockerContainer("testimage").setForcePullImage(true)))));
 
   private static final ExecutorSettings EXECUTOR_SETTINGS_WITH_VOLUMES = new ExecutorSettings(
       ImmutableMap.<String, ExecutorConfig>builder().
@@ -354,6 +359,13 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
   }
 
   @Test
+  public void testDockerContainerWithForcePull() {
+    DockerInfo docker = getDockerTaskInfo(TASK_WITH_DOCKER_FORCE_PULL).getExecutor().getContainer()
+            .getDocker();
+    assertTrue(docker.getForcePullImage());
+  }
+
+  @Test
   public void testGlobalMounts() {
     config = EXECUTOR_SETTINGS_WITH_VOLUMES;
 
@@ -457,7 +469,8 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
     ContainerInfo expectedContainer = ContainerInfo.newBuilder()
         .setType(Type.DOCKER)
         .setDocker(DockerInfo.newBuilder()
-            .setImage("hello-world"))
+            .setImage("hello-world")
+            .setForcePullImage(false))
         .build();
     assertEquals(expectedContainer, task.getContainer());
     checkDiscoveryInfoUnset(task);

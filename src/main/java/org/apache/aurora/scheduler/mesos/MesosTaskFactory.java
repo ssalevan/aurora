@@ -291,7 +291,9 @@ public interface MesosTaskFactory {
             .setValue(item.getValue()).build());
 
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
-          .setImage(config.getImage()).addAllParameters(parameters);
+          .setImage(config.getImage())
+          .setForcePullImage(config.isForcePullImage())
+          .addAllParameters(parameters);
       return ContainerInfo.newBuilder()
           .setType(ContainerInfo.Type.DOCKER)
           .setDocker(dockerBuilder.build())
