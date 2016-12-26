@@ -15,7 +15,7 @@
 # Disable checkstyle for this entire file as it is a pystachio schema.
 # checkstyle: noqa
 
-from pystachio import Choice
+from pystachio import Choice, Enum
 
 from apache.thermos.config.schema import *
 
@@ -122,6 +122,9 @@ class Docker(Struct):
   image = Required(String)
   force_pull_image = Default(Boolean, False)
   parameters = Default(List(Parameter), [])
+  network = Default(String, 'HOST')
+  user_network = Default(String, '')
+  disable_thermos = Default(Boolean, False)
 
 
 class AppcImage(Struct):

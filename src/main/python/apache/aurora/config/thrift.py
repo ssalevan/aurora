@@ -21,6 +21,7 @@ from twitter.common.lang import Compatibility
 from apache.aurora.config.schema.base import AppcImage as PystachioAppcImage
 from apache.aurora.config.schema.base import Container as PystachioContainer
 from apache.aurora.config.schema.base import DockerImage as PystachioDockerImage
+from apache.aurora.config.schema.base import DockerNetwork as PystachioDockerNetwork
 from apache.aurora.config.schema.base import (
     Docker,
     HealthCheckConfig,
@@ -38,6 +39,7 @@ from gen.apache.aurora.api.ttypes import (
     CronCollisionPolicy,
     DockerContainer,
     DockerImage,
+    DockerNetwork,
     DockerParameter,
     ExecutorConfig,
     Identity,
@@ -135,6 +137,10 @@ def select_cron_policy(cron_policy):
   return parse_enum(CronCollisionPolicy, cron_policy)
 
 
+def select_docker_network(docker_network):
+  return parse_enum(DockerNetwork, docker_network)
+
+
 def select_service_bit(job):
   return fully_interpolated(job.service(), bool)
 
@@ -145,15 +151,18 @@ def create_docker_container(container):
     for p in fully_interpolated(container.parameters()):
       params.append(DockerParameter(p['name'], p['value']))
   return DockerContainer(fully_interpolated(container.image()), params,
-      fully_interpolated(container.force_pull_image()))
+      fully_interpolated(container.force_pull_image()),
+      select_docker_network(fully_interpolated(container.network())),
+      fully_interpolated(container.user_network()))
+
+
+def is_docker_container(c):
+  return isinstance(c, PystachioContainer) and c.docker() is not None
 
 
 def create_container_config(container):
   if container is Empty:
     return Container(MesosContainer(), None)
-
-  def is_docker_container(c):
-    return isinstance(c, PystachioContainer) and c.docker() is not None
 
   unwrapped = container.unwrap()
   if isinstance(unwrapped, Docker) or is_docker_container(unwrapped):
@@ -306,9 +315,12 @@ def convert(job, metadata=frozenset(), ports=frozenset()):
   if unbound:
     raise InvalidConfig('Config contains unbound variables: %s' % ' '.join(map(str, unbound)))
 
-  task.executorConfig = ExecutorConfig(
-      name=AURORA_EXECUTOR_NAME,
-      data=filter_aliased_fields(underlying).json_dumps())
+  if job.container() is not Empty and job.container().unwrap().disable_thermos():
+    task.executorConfig = None
+  else:
+    task.executorConfig = ExecutorConfig(
+        name=AURORA_EXECUTOR_NAME,
+        data=filter_aliased_fields(underlying).json_dumps())
 
   return JobConfiguration(
       key=key,

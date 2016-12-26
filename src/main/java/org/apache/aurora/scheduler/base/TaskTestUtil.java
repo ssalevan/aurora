@@ -141,6 +141,7 @@ public final class TaskTestUtil {
             "config"))
         .setContainer(Container.docker(
             new DockerContainer("imagename")
+                .setForcePullImage(true)
                 .setParameters(ImmutableList.of(
                     new DockerParameter("a", "b"),
                     new DockerParameter("c", "d")))))

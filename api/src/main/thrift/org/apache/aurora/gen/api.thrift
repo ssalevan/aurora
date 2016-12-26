@@ -185,6 +185,18 @@ struct DockerImage {
   2: string tag
 }
 
+/** Which type of network to connect to an instance of a Docker container */
+enum DockerNetwork {
+  /** Uses the host's networking stack */
+  HOST   = 1,
+  /** Uses Docker's default 'bridge' interface */
+  BRIDGE = 2,
+  /** Uses no networking interface */
+  NONE   = 3,
+  /** Uses a user-defined networking interface */
+  USER   = 4
+}
+
 /** Describes an image for use with the Mesos unified containerizer in the AppC format */
 struct AppcImage {
   /** The name of the image to run */
@@ -223,6 +235,10 @@ struct DockerContainer {
   2: optional list<DockerParameter> parameters
   /** Whether to forcibly pull the Docker image from the Hub */
   3: optional bool forcePullImage
+  /** Specifies which network the Docker container should be connected to */
+  4: optional DockerNetwork network
+  /** Specifies the name of a user-defined Docker network interface */
+  5: optional string userNetwork
 }
 
 /** Describes a container to be used in a task */
