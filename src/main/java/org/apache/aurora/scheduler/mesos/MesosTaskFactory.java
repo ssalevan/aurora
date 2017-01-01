@@ -27,6 +27,7 @@ import com.google.protobuf.ByteString;
 
 import org.apache.aurora.Protobufs;
 import org.apache.aurora.codec.ThriftBinaryCodec;
+import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.scheduler.TierManager;
 import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.SchedulerException;
@@ -52,6 +53,7 @@ import org.apache.mesos.Protos.ExecutorID;
 import org.apache.mesos.Protos.ExecutorInfo;
 import org.apache.mesos.Protos.Label;
 import org.apache.mesos.Protos.Labels;
+import org.apache.mesos.Protos.NetworkInfo;
 import org.apache.mesos.Protos.Offer;
 import org.apache.mesos.Protos.Port;
 import org.apache.mesos.Protos.Resource;
@@ -290,21 +292,30 @@ public interface MesosTaskFactory {
           item -> Protos.Parameter.newBuilder().setKey(item.getName())
             .setValue(item.getValue()).build());
 
-      //ContainerInfo.DockerInfo.Network = ContainerInfo.DockerInfo.Network.valueOf(config.g)
+      ContainerInfo.DockerInfo.Network network = ContainerInfo.DockerInfo.Network.valueOf(
+          config.getNetwork().name());
 
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
           .setImage(config.getImage())
           .setForcePullImage(config.isForcePullImage())
-          .setNetwork()
+          .setNetwork(network)
           .addAllParameters(parameters);
-      return ContainerInfo.newBuilder()
+
+      ContainerInfo.Builder containerBuilder = ContainerInfo.newBuilder()
           .setType(ContainerInfo.Type.DOCKER)
           .setDocker(dockerBuilder.build())
           .addAllVolumes(
               executorName.isPresent()
                   ? executorSettings.getExecutorConfig(executorName.get()).get().getVolumeMounts()
-                  : ImmutableList.of())
-          .build();
+                  : ImmutableList.of());
+      // If we're using a user-defined Docker network, creates a new NetworkInfo to pass this context
+      // along to Mesos.
+      if (config.getNetwork() == DockerNetwork.USER && config.isSetUserNetwork()) {
+        NetworkInfo.Builder networkInfoBuilder = NetworkInfo.newBuilder()
+            .setName(config.getUserNetwork());
+        containerBuilder.addNetworkInfos(networkInfoBuilder.build());
+      }
+      return containerBuilder.build();
     }
 
     @SuppressWarnings("deprecation") // we set the source field for backwards compat.

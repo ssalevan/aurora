@@ -315,7 +315,16 @@ def convert(job, metadata=frozenset(), ports=frozenset()):
   if unbound:
     raise InvalidConfig('Config contains unbound variables: %s' % ' '.join(map(str, unbound)))
 
-  if job.container() is not Empty and job.container().unwrap().disable_thermos():
+  # If a user wishes to disable the Thermos executor, sets the executorConfig to None.
+  docker_container = None 
+  if job.container() is not Empty:
+    unwrapped_container = job.container().unwrap()
+    if isinstance(unwrapped_container, Docker):
+      docker_container = unwrapped_container
+    elif is_docker_container(unwrapped_container):
+      docker_container = unwrapped_container.docker()
+
+  if docker_container is not None and docker_container.disable_thermos():
     task.executorConfig = None
   else:
     task.executorConfig = ExecutorConfig(

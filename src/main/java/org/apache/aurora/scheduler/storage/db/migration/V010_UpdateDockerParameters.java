@@ -25,11 +25,16 @@ public class V010_UpdateDockerParameters implements MigrationScript {
 
     @Override
     public String getDescription() {
-        return "Create the task_config_volumes and volume_modes tables";
+      return "Updates TaskConfig to support additional Docker parameters";
     }
 
     @Override
     public String getUpScript() {
+      return "";
     }
 
+    @Override
+    public String getDownScript() {
+      return "";
+    }
 }
