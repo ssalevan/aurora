@@ -21,7 +21,6 @@ from twitter.common.lang import Compatibility
 from apache.aurora.config.schema.base import AppcImage as PystachioAppcImage
 from apache.aurora.config.schema.base import Container as PystachioContainer
 from apache.aurora.config.schema.base import DockerImage as PystachioDockerImage
-from apache.aurora.config.schema.base import DockerNetwork as PystachioDockerNetwork
 from apache.aurora.config.schema.base import (
     Docker,
     HealthCheckConfig,
