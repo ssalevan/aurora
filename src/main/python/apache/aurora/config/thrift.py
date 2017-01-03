@@ -21,7 +21,6 @@ from twitter.common.lang import Compatibility
 from apache.aurora.config.schema.base import AppcImage as PystachioAppcImage
 from apache.aurora.config.schema.base import Container as PystachioContainer
 from apache.aurora.config.schema.base import DockerImage as PystachioDockerImage
-from apache.aurora.config.schema.base import FetcherURI as PystachioFetcherURI
 from apache.aurora.config.schema.base import (
     Docker,
     HealthCheckConfig,
@@ -305,7 +304,7 @@ def convert(job, metadata=frozenset(), ports=frozenset()):
   task.taskLinks = {}  # See AURORA-739
   task.constraints = constraints_to_thrift(not_empty_or(job.constraints(), {}))
   task.container = create_container_config(job.container())
-  task.mesosFetcherUris = fetcher_uris_to_thift(not_empty_or(job.fetcher_uris()))
+  task.mesosFetcherUris = fetcher_uris_to_thrift(job.fetcher_uris())
 
   underlying, refs = job.interpolate()
 
