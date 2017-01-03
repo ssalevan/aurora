@@ -21,6 +21,7 @@ from twitter.common.lang import Compatibility
 from apache.aurora.config.schema.base import AppcImage as PystachioAppcImage
 from apache.aurora.config.schema.base import Container as PystachioContainer
 from apache.aurora.config.schema.base import DockerImage as PystachioDockerImage
+from apache.aurora.config.schema.base import FetcherURI as PystachioFetcherURI
 from apache.aurora.config.schema.base import (
     Docker,
     HealthCheckConfig,
@@ -47,6 +48,7 @@ from gen.apache.aurora.api.ttypes import (
     JobKey,
     LimitConstraint,
     MesosContainer,
+    MesosFetcherURI,
     Metadata,
     Resource,
     TaskConfig,
@@ -90,6 +92,17 @@ def constraints_to_thrift(constraints):
     constraint.constraint = task_constraint
     result.add(constraint)
   return result
+
+
+def fetcher_uris_to_thrift(fetcher_uris):
+  mesos_fetcher_uris = []
+  for fetcher_uri in fetcher_uris.items():
+    mesos_fetcher_uri = MesosFetcherURI()
+    mesos_fetcher_uri.value = fully_interpolated(fetcher_uri.value())
+    mesos_fetcher_uri.extract = fully_interpolated(fetcher_uri.extract(), bool)
+    mesos_fetcher_uri.cache = fully_interpolated(fetcher_uri.cache(), bool)
+    mesos_fetcher_uris.append(mesos_fetcher_uri)
+  return mesos_fetcher_uris
 
 
 def task_instance_from_job(job, instance, hostname):
@@ -292,6 +305,7 @@ def convert(job, metadata=frozenset(), ports=frozenset()):
   task.taskLinks = {}  # See AURORA-739
   task.constraints = constraints_to_thrift(not_empty_or(job.constraints(), {}))
   task.container = create_container_config(job.container())
+  task.mesosFetcherUris = fetcher_uris_to_thift(not_empty_or(job.fetcher_uris()))
 
   underlying, refs = job.interpolate()
 
@@ -323,7 +337,8 @@ def convert(job, metadata=frozenset(), ports=frozenset()):
     elif is_docker_container(unwrapped_container):
       docker_container = unwrapped_container.docker()
 
-  if docker_container is not None and docker_container.disable_thermos():
+  if (docker_container is not None and
+      fully_interpolated(docker_container.disable_thermos(), bool)):
     task.executorConfig = None
   else:
     task.executorConfig = ExecutorConfig(

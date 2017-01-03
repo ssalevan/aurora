@@ -102,6 +102,12 @@ class Announcer(Struct):
   zk_path      = String
 
 
+class FetcherURI(Struct):
+  value   = Required(String)
+  extract = Default(Boolean, False)
+  cache   = Default(Boolean, False)
+
+
 # The executorConfig populated inside of TaskConfig.
 class MesosTaskInstance(Struct):
   task                = Required(Task)
@@ -170,6 +176,7 @@ class MesosJob(Struct):
   # TODO(wickman) Make Default(Any, LifecycleConfig()) once pystachio #17 is addressed.
   lifecycle                  = Default(LifecycleConfig, DefaultLifecycleConfig)
   task_links                 = Map(String, String)  # Unsupported.  See AURORA-739
+  fetcher_uris               = Default(List(FetcherURI), [])
 
   enable_hooks = Default(Boolean, False)  # enable client API hooks; from env python-list 'hooks'
 

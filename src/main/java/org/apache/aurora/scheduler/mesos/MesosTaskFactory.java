@@ -208,6 +208,7 @@ public interface MesosTaskFactory {
         taskBuilder.setExecutor(executorInfoBuilder.build());
       } else if (config.getContainer().isSetDocker()) {
         IDockerContainer dockerContainer = config.getContainer().getDocker();
+
         if (config.isSetExecutorConfig()) {
           ExecutorInfo.Builder execBuilder = configureTaskForExecutor(task, acceptedOffer)
               .setContainer(getDockerContainerInfo(
@@ -216,8 +217,15 @@ public interface MesosTaskFactory {
           taskBuilder.setExecutor(execBuilder.build());
         } else {
           LOG.warn("Running Docker-based task without an executor.");
-          taskBuilder.setContainer(getDockerContainerInfo(dockerContainer, Optional.absent()))
-              .setCommand(CommandInfo.newBuilder().setShell(false));
+          CommandInfo.Builder commandBuilder = CommandInfo.newBuilder().setShell(false);
+          taskBuilder.setContainer(getDockerContainerInfo(dockerContainer, Optional.absent()));
+          List<CommandInfo.URI> mesosFetcherUris = task.getTask().getMesosFetcherUris().stream()
+                  .map(u -> Protos.CommandInfo.URI.newBuilder().setValue(u.getValue())
+                          .setExecutable(false)
+                          .setExtract(u.isExtract())
+                          .setCache(u.isCache()).build())
+                  .collect(Collectors.toList());
+          taskBuilder.setCommand(commandBuilder.addAllUris(mesosFetcherUris));
         }
       } else {
         throw new SchedulerException("Task had no supported container set.");

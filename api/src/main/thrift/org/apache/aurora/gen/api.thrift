@@ -239,8 +239,6 @@ struct DockerContainer {
   4: optional DockerNetwork network
   /** Specifies the name of a user-defined Docker network interface */
   5: optional string userNetwork
-  /** Specifies the URI of a Docker credentials tarball */
-  6: optional string credentialsUri
 }
 
 /** Describes a container to be used in a task */
