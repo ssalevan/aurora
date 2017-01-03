@@ -95,7 +95,7 @@ def constraints_to_thrift(constraints):
 
 def fetcher_uris_to_thrift(fetcher_uris):
   mesos_fetcher_uris = []
-  for fetcher_uri in fetcher_uris.items():
+  for fetcher_uri in fetcher_uris:
     mesos_fetcher_uri = MesosFetcherURI()
     mesos_fetcher_uri.value = fully_interpolated(fetcher_uri.value())
     mesos_fetcher_uri.extract = fully_interpolated(fetcher_uri.extract(), bool)
