@@ -239,6 +239,8 @@ struct DockerContainer {
   4: optional DockerNetwork network
   /** Specifies the name of a user-defined Docker network interface */
   5: optional string userNetwork
+  /** Specifies a command which will override the container's entrypoint */
+  6: optional string command
 }
 
 /** Describes a container to be used in a task */
