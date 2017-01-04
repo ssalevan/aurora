@@ -217,7 +217,15 @@ public interface MesosTaskFactory {
           taskBuilder.setExecutor(execBuilder.build());
         } else {
           LOG.warn("Running Docker-based task without an executor.");
-          CommandInfo.Builder commandBuilder = CommandInfo.newBuilder().setShell(false);
+          CommandInfo.Builder commandBuilder = CommandInfo.newBuilder();
+          if (dockerContainer.isSetCommand() && dockerContainer.getCommand().length() > 0) {
+            commandBuilder
+                .setValue(dockerContainer.getCommand())
+                .setShell(true);
+          } else {
+            commandBuilder.setShell(false);
+          }
+
           taskBuilder.setContainer(getDockerContainerInfo(dockerContainer, Optional.absent()));
           List<CommandInfo.URI> mesosFetcherUris = task.getTask().getMesosFetcherUris().stream()
                   .map(u -> Protos.CommandInfo.URI.newBuilder().setValue(u.getValue())

@@ -131,6 +131,7 @@ class Docker(Struct):
   network = Default(String, 'HOST')
   user_network = Default(String, '')
   disable_thermos = Default(Boolean, False)
+  command = Default(String, '')
 
 
 class AppcImage(Struct):

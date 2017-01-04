@@ -164,7 +164,8 @@ def create_docker_container(container):
   return DockerContainer(fully_interpolated(container.image()), params,
       fully_interpolated(container.force_pull_image()),
       select_docker_network(container.network()),
-      fully_interpolated(container.user_network()))
+      fully_interpolated(container.user_network()),
+      fully_interpolated(container.command()))
 
 
 def is_docker_container(c):
