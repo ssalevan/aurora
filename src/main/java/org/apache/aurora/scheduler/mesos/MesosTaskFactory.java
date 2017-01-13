@@ -308,14 +308,16 @@ public interface MesosTaskFactory {
           item -> Protos.Parameter.newBuilder().setKey(item.getName())
             .setValue(item.getValue()).build());
 
-      ContainerInfo.DockerInfo.Network network = ContainerInfo.DockerInfo.Network.valueOf(
-          config.getNetwork().name());
-
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
           .setImage(config.getImage())
           .setForcePullImage(config.isForcePullImage())
-          .setNetwork(network)
           .addAllParameters(parameters);
+
+      if (config.isSetNetwork()) {
+        ContainerInfo.DockerInfo.Network network = ContainerInfo.DockerInfo.Network.valueOf(
+            config.getNetwork().name());
+        dockerBuilder.setNetwork(network);
+      }
 
       ContainerInfo.Builder containerBuilder = ContainerInfo.newBuilder()
           .setType(ContainerInfo.Type.DOCKER)
