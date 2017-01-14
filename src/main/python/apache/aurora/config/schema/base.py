@@ -126,12 +126,12 @@ class Parameter(Struct):
 
 class Docker(Struct):
   image = Required(String)
-  force_pull_image = Default(Boolean, False)
   parameters = Default(List(Parameter), [])
+  force_pull_image = Default(Boolean, False)
   network = Default(String, 'HOST')
   user_network = Default(String, '')
-  disable_thermos = Default(Boolean, False)
   command = Default(String, '')
+  disable_thermos = Default(Boolean, False)
 
 
 class AppcImage(Struct):
