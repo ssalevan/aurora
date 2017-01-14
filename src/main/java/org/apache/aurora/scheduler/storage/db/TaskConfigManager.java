@@ -13,6 +13,7 @@
  */
 package org.apache.aurora.scheduler.storage.db;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,7 +58,12 @@ class TaskConfigManager {
 
     // We could optimize this slightly by first comparing the un-hydrated row and breaking early.
     List<DbTaskConfig> configs = configMapper.selectConfigsByJob(config.getJob());
-    LOG.info("HERE ARE MY CONFIGS: {}", configs);
+
+    List<ITaskConfig> immutableConfigs = new ArrayList<>();
+    for (DbTaskConfig curConfig : configs) {
+      immutableConfigs.add(curConfig.toImmutable());
+    }
+    LOG.info("HERE ARE MY CONFIGS: {}", immutableConfigs);
     Map<ITaskConfig, DbTaskConfig> rowsByConfig =
         Maps.uniqueIndex(
             configs,
