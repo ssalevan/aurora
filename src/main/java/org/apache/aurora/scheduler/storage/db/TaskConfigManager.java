@@ -13,6 +13,7 @@
  */
 package org.apache.aurora.scheduler.storage.db;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,10 +31,15 @@ import org.apache.aurora.scheduler.storage.entities.IImage;
 import org.apache.aurora.scheduler.storage.entities.IMesosContainer;
 import org.apache.aurora.scheduler.storage.entities.ITaskConfig;
 import org.apache.aurora.scheduler.storage.entities.IValueConstraint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static java.util.Objects.requireNonNull;
 
 class TaskConfigManager {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TaskConfigManager.class);
+
   private final TaskConfigMapper configMapper;
   private final JobKeyMapper jobKeyMapper;
 
@@ -50,9 +56,11 @@ class TaskConfigManager {
     // backfilled. See AURORA-1603 for more details.
 
     // We could optimize this slightly by first comparing the un-hydrated row and breaking early.
+    List<DbTaskConfig> configs = configMapper.selectConfigsByJob(config.getJob());
+    LOG.info("HERE ARE MY CONFIGS: {}", configs);
     Map<ITaskConfig, DbTaskConfig> rowsByConfig =
         Maps.uniqueIndex(
-            configMapper.selectConfigsByJob(config.getJob()),
+            configs,
             DbTaskConfig::toImmutable);
 
     return Optional.ofNullable(rowsByConfig.get(config)).map(DbTaskConfig::getRowId);
