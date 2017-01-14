@@ -326,6 +326,7 @@ public interface MesosTaskFactory {
               executorName.isPresent()
                   ? executorSettings.getExecutorConfig(executorName.get()).get().getVolumeMounts()
                   : ImmutableList.of());
+
       // If we're using a user-defined Docker network, creates a new NetworkInfo to pass this context
       // along to Mesos.
       if (config.getNetwork() == DockerNetwork.USER && config.isSetUserNetwork()) {
