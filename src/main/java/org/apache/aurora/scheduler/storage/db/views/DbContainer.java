@@ -15,10 +15,7 @@ package org.apache.aurora.scheduler.storage.db.views;
 
 import java.util.List;
 
-import org.apache.aurora.gen.Container;
-import org.apache.aurora.gen.DockerContainer;
-import org.apache.aurora.gen.MesosContainer;
-import org.apache.aurora.gen.Volume;
+import org.apache.aurora.gen.*;
 
 public final class DbContainer {
   private DockerContainer docker;
@@ -30,7 +27,21 @@ public final class DbContainer {
 
   Container toThrift() {
     if (docker != null) {
-      return Container.docker(docker);
+      DockerContainer containerWithDefaults = docker.deepCopy();
+      // If any of the optional fields on the DockerContainer struct are not set, sets defaults.
+      if (!containerWithDefaults.isSetNetwork()) {
+        containerWithDefaults.setNetwork(DockerNetwork.HOST);
+      }
+      if (!containerWithDefaults.isSetUserNetwork()) {
+        containerWithDefaults.setUserNetwork("");
+      }
+      if (!containerWithDefaults.isSetForcePullImage()) {
+        containerWithDefaults.setForcePullImage(false);
+      }
+      if (!containerWithDefaults.isSetCommand()) {
+        containerWithDefaults.setCommand("");
+      }
+      return Container.docker(containerWithDefaults);
     }
 
     if (image != null) {

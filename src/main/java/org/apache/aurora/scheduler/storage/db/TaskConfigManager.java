@@ -63,7 +63,6 @@ class TaskConfigManager {
     for (DbTaskConfig curConfig : configs) {
       immutableConfigs.add(curConfig.toImmutable());
     }
-    LOG.info("HERE ARE MY CONFIGS: {}", immutableConfigs);
     Map<ITaskConfig, DbTaskConfig> rowsByConfig =
         Maps.uniqueIndex(
             configs,

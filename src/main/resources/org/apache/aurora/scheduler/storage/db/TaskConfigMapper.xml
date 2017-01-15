@@ -98,7 +98,7 @@
     <id column="id"/>
     <result column="docker_image" property="image"/>
     <result column="docker_force_pull_image" property="forcePullImage"/>
-    <result property="docker_network" column="network" typeHandler="org.apache.aurora.scheduler.storage.db.typehandlers.DockerNetworkTypeHandler" />
+    <result column="docker_network" property="network" typeHandler="org.apache.aurora.scheduler.storage.db.typehandlers.DockerNetworkTypeHandler"/>
     <result column="docker_user_network" property="userNetwork"/>
     <result column="docker_command" property="command"/>
 
@@ -201,6 +201,10 @@
       p.port_name AS p_port_name,
       d.id AS c_id,
       d.image AS c_docker_image,
+      d.force_pull_image AS c_docker_force_pull_image,
+      d.network AS c_docker_network,
+      d.user_network AS c_docker_user_network,
+      d.command AS c_docker_command,
       m.id AS m_id,
       m.key AS m_key,
       m.value AS m_value,
@@ -369,7 +373,7 @@
       #{configId},
       #{container.image},
       #{container.forcePullImage},
-      #{volume.network, typeHandler=org.apache.aurora.scheduler.storage.db.typehandlers.DockerNetworkTypeHandler},
+      #{container.network, typeHandler=org.apache.aurora.scheduler.storage.db.typehandlers.DockerNetworkTypeHandler},
       #{container.userNetwork},
       #{container.command}
     )

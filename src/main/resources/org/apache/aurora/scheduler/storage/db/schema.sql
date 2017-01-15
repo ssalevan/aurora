@@ -189,14 +189,21 @@ CREATE TABLE task_config_mesos_fetcher_uris(
   cache BOOLEAN NOT NULL
 );
 
+CREATE TABLE docker_networks(
+  id INT PRIMARY KEY,
+  name VARCHAR NOT NULL,
+
+  UNIQUE(name)
+);
+
 CREATE TABLE task_config_docker_containers(
   id IDENTITY,
   task_config_id BIGINT NOT NULL REFERENCES task_configs(id) ON DELETE CASCADE,
   image VARCHAR NOT NULL,
-  force_pull_image BOOLEAN,
-  network INT REFERENCES docker_networks(id),
-  user_network VARCHAR,
-  command VARCHAR,
+  force_pull_image BOOLEAN NOT NULL,
+  network INT NOT NULL REFERENCES docker_networks(id),
+  user_network VARCHAR NOT NULL,
+  command VARCHAR NOT NULL,
 
   UNIQUE(task_config_id)
 );
@@ -395,11 +402,4 @@ CREATE TABLE job_instance_update_events(
   action INT NOT NULL REFERENCES job_instance_update_actions(id),
   instance_id INT NOT NULL,
   timestamp_ms BIGINT NOT NULL
-);
-
-CREATE TABLE docker_networks(
-  id INT PRIMARY KEY,
-  name VARCHAR NOT NULL,
-
-  UNIQUE(name)
 );

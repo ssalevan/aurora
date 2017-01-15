@@ -20,7 +20,7 @@ import org.apache.ibatis.migration.MigrationScript;
 public class V010_AddDockerParamsAndCreateDockerNetworksTable implements MigrationScript {
   @Override
   public BigDecimal getId() {
-    return BigDecimal.valueOf(9L);
+    return BigDecimal.valueOf(10L);
   }
 
   @Override
@@ -34,19 +34,19 @@ public class V010_AddDockerParamsAndCreateDockerNetworksTable implements Migrati
         + "id INT PRIMARY KEY,"
         + "name VARCHAR NOT NULL,"
         + "UNIQUE(name)"
-        + ");"
-        + "ALTER TABLE task_config_docker_containers ADD force_pull_image BOOLEAN;"
-        + "ALTER TABLE task_config_docker_containers ADD network INT REFERENCES docker_networks(id);"
-        + "ALTER TABLE task_config_docker_containers ADD user_network VARCHAR;"
-        + "ALTER TABLE task_config_docker_containers ADD command VARCHAR;";
+        + ");";
+        // + "ALTER TABLE task_config_docker_containers ADD force_pull_image BOOLEAN NOT NULL;"
+        // + "ALTER TABLE task_config_docker_containers ADD network INT NOT NULL REFERENCES docker_networks(id);"
+        // + "ALTER TABLE task_config_docker_containers ADD user_network VARCHAR NOT NULL;"
+        // + "ALTER TABLE task_config_docker_containers ADD command VARCHAR NOT NULL;";
   }
 
   @Override
   public String getDownScript() {
-    return "DROP TABLE IF EXISTS docker_networks;"
-        + "ALTER TABLE task_config_docker_containers DROP COLUMN force_pull_image;"
-        + "ALTER TABLE task_config_docker_containers DROP COLUMN network;"
-        + "ALTER TABLE task_config_docker_containers DROP COLUMN user_network;"
-        + "ALTER TABLE task_config_docker_containers DROP COLUMN command;";
+    return "DROP TABLE IF EXISTS docker_networks;";
+        // + "ALTER TABLE task_config_docker_containers DROP COLUMN force_pull_image;"
+        // + "ALTER TABLE task_config_docker_containers DROP COLUMN network;"
+        // + "ALTER TABLE task_config_docker_containers DROP COLUMN user_network;"
+        // + "ALTER TABLE task_config_docker_containers DROP COLUMN command;";
   }
 }
