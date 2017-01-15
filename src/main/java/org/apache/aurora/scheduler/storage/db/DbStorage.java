@@ -246,7 +246,8 @@ class DbStorage extends AbstractIdleService implements Storage {
     }
 
     for (DockerNetwork dockerNetwork : DockerNetwork.values()) {
-      enumValueMapper.addEnumValue("docker_networks", mode.getValue(), mode.name());
+      enumValueMapper.addEnumValue("docker_networks", dockerNetwork.getValue(),
+          dockerNetwork.name());
     }
 
     createPoolMetrics();
