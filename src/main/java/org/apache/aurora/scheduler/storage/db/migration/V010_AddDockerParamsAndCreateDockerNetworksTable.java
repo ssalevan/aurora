@@ -38,7 +38,7 @@ public class V010_AddDockerParamsAndCreateDockerNetworksTable implements Migrati
         + "ALTER TABLE task_config_docker_containers ADD force_pull_image BOOLEAN;"
         + "ALTER TABLE task_config_docker_containers ADD network INT REFERENCES docker_networks(id);"
         + "ALTER TABLE task_config_docker_containers ADD user_network VARCHAR;"
-        + "ALTER TABLE task_config_docker_containers ADD command VARCHAR;"
+        + "ALTER TABLE task_config_docker_containers ADD command VARCHAR;";
   }
 
   @Override
@@ -47,6 +47,6 @@ public class V010_AddDockerParamsAndCreateDockerNetworksTable implements Migrati
         + "ALTER TABLE task_config_docker_containers DROP COLUMN force_pull_image;"
         + "ALTER TABLE task_config_docker_containers DROP COLUMN network;"
         + "ALTER TABLE task_config_docker_containers DROP COLUMN user_network;"
-        + "ALTER TABLE task_config_docker_containers DROP COLUMN command;"
+        + "ALTER TABLE task_config_docker_containers DROP COLUMN command;";
   }
 }
