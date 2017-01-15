@@ -97,6 +97,11 @@
   <resultMap id="dockerContainerMap" type="org.apache.aurora.gen.DockerContainer">
     <id column="id"/>
     <result column="docker_image" property="image"/>
+    <result column="docker_force_pull_image" property="forcePullImage"/>
+    <result property="docker_network" column="network" typeHandler="org.apache.aurora.scheduler.storage.db.typehandlers.DockerNetworkTypeHandler" />
+    <result column="docker_user_network" property="userNetwork"/>
+    <result column="docker_command" property="command"/>
+
     <collection
         property="parameters"
         select="selectDockerParameters"
@@ -355,10 +360,18 @@
   <insert id="insertContainer" useGeneratedKeys="true" keyColumn="id" keyProperty="result.id">
     INSERT INTO task_config_docker_containers (
       task_config_id,
-      image
+      image,
+      force_pull_image,
+      network,
+      user_network,
+      command
     ) VALUES (
       #{configId},
-      #{container.image}
+      #{container.image},
+      #{container.forcePullImage},
+      #{volume.network, typeHandler=org.apache.aurora.scheduler.storage.db.typehandlers.DockerNetworkTypeHandler},
+      #{container.userNetwork},
+      #{container.command}
     )
   </insert>
 

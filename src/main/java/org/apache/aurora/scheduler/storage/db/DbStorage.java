@@ -27,6 +27,7 @@ import com.google.inject.Inject;
 import org.apache.aurora.common.inject.TimedInterceptor.Timed;
 import org.apache.aurora.common.stats.StatsProvider;
 import org.apache.aurora.gen.CronCollisionPolicy;
+import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.gen.JobUpdateAction;
 import org.apache.aurora.gen.JobUpdateStatus;
 import org.apache.aurora.gen.MaintenanceMode;
@@ -242,6 +243,10 @@ class DbStorage extends AbstractIdleService implements Storage {
 
     for (Mode mode : Mode.values()) {
       enumValueMapper.addEnumValue("volume_modes", mode.getValue(), mode.name());
+    }
+
+    for (DockerNetwork dockerNetwork : DockerNetwork.values()) {
+      enumValueMapper.addEnumValue("docker_networks", mode.getValue(), mode.name());
     }
 
     createPoolMetrics();
