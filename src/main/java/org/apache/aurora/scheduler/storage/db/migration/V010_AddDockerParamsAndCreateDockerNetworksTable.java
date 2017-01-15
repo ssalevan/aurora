@@ -34,19 +34,21 @@ public class V010_AddDockerParamsAndCreateDockerNetworksTable implements Migrati
         + "id INT PRIMARY KEY,"
         + "name VARCHAR NOT NULL,"
         + "UNIQUE(name)"
-        + ");";
-        // + "ALTER TABLE task_config_docker_containers ADD force_pull_image BOOLEAN NOT NULL;"
-        // + "ALTER TABLE task_config_docker_containers ADD network INT NOT NULL REFERENCES docker_networks(id);"
-        // + "ALTER TABLE task_config_docker_containers ADD user_network VARCHAR NOT NULL;"
-        // + "ALTER TABLE task_config_docker_containers ADD command VARCHAR NOT NULL;";
+        + ");"
+        + "ALTER TABLE task_config_docker_containers ADD COLUMN IF NOT EXISTS force_pull_image BOOLEAN NOT NULL;"
+        + "ALTER TABLE task_config_docker_containers ADD COLUMN IF NOT EXISTS network INT NOT NULL;"
+        + "ALTER TABLE task_config_docker_containers ADD COLUMN IF NOT EXISTS user_network VARCHAR NOT NULL;"
+        + "ALTER TABLE task_config_docker_containers ADD COLUMN IF NOT EXISTS command VARCHAR NOT NULL;"
+        + "ALTER TABLE task_config_docker_containers ADD CONSTRAINT DOCKER_NETWORK FOREIGN KEY(network) REFERENCES docker_networks(id);";
   }
 
   @Override
   public String getDownScript() {
-    return "DROP TABLE IF EXISTS docker_networks;";
-        // + "ALTER TABLE task_config_docker_containers DROP COLUMN force_pull_image;"
-        // + "ALTER TABLE task_config_docker_containers DROP COLUMN network;"
-        // + "ALTER TABLE task_config_docker_containers DROP COLUMN user_network;"
-        // + "ALTER TABLE task_config_docker_containers DROP COLUMN command;";
+    return "ALTER TABLE task_config_docker_containers DROP CONSTRAINT DOCKER_NETWORK;"
+        + "ALTER TABLE task_config_docker_containers DROP COLUMN IF EXISTS force_pull_image;"
+        + "ALTER TABLE task_config_docker_containers DROP COLUMN IF EXISTS network;"
+        + "ALTER TABLE task_config_docker_containers DROP COLUMN IF EXISTS user_network;"
+        + "ALTER TABLE task_config_docker_containers DROP COLUMN IF EXISTS command;"
+        + "DROP TABLE IF EXISTS docker_networks;";
   }
 }
