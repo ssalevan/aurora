@@ -312,9 +312,12 @@ public interface MesosTaskFactory {
           item -> {
             // Templates the Mesos instance ID if the user has requested it.
             if (task.isPresent()) {
+              String templatedKey = item.getName().replace(
+                  "{{mesos.instance}}", Integer.toString(task.get().getInstanceId()));
               String templatedValue = item.getValue().replace(
                   "{{mesos.instance}}", Integer.toString(task.get().getInstanceId()));
-              return Protos.Parameter.newBuilder().setKey(item.getName())
+              LOG.debug("Templated Docker parameter: %s=%s", templatedKey, templatedValue);
+              return Protos.Parameter.newBuilder().setKey(templatedKey)
                   .setValue(templatedValue).build();
             } else {
               return Protos.Parameter.newBuilder().setKey(item.getName())
