@@ -308,6 +308,7 @@ public interface MesosTaskFactory {
             Optional<String> executorName,
             Optional<IAssignedTask> task) {
 
+      LOG.debug("Getting Docker container info: %s, %s", config, task);
       Iterable<Protos.Parameter> parameters = Iterables.transform(config.getParameters(),
           item -> {
             // Templates the Mesos instance ID if the user has requested it.
@@ -320,10 +321,12 @@ public interface MesosTaskFactory {
               return Protos.Parameter.newBuilder().setKey(templatedKey)
                   .setValue(templatedValue).build();
             } else {
+              LOG.debug("NOT TEMPLATING Docker parameters.");
               return Protos.Parameter.newBuilder().setKey(item.getName())
                   .setValue(item.getValue()).build();
             }
           });
+      LOG.debug("Parameters: %s", parameters);
 
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
           .setImage(config.getImage())
