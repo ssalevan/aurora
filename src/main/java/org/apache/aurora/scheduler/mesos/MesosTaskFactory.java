@@ -27,6 +27,7 @@ import com.google.protobuf.ByteString;
 
 import org.apache.aurora.Protobufs;
 import org.apache.aurora.codec.ThriftBinaryCodec;
+import org.apache.aurora.gen.AssignedTask;
 import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.scheduler.TierManager;
 import org.apache.aurora.scheduler.base.JobKeys;
@@ -213,12 +214,14 @@ public interface MesosTaskFactory {
           ExecutorInfo.Builder execBuilder = configureTaskForExecutor(task, acceptedOffer)
               .setContainer(getDockerContainerInfo(
                   dockerContainer,
-                  Optional.of(getExecutorName(task))));
+                  Optional.of(getExecutorName(task)),
+                  Optional.of(task)));
           taskBuilder.setExecutor(execBuilder.build());
         } else {
           LOG.warn("Running Docker-based task without an executor.");
           CommandInfo.Builder commandBuilder = CommandInfo.newBuilder();
           if (dockerContainer.isSetCommand() && dockerContainer.getCommand().length() > 0) {
+            LOG.debug("Using Docker command override: %s", dockerContainer.getCommand());
             commandBuilder
                 .setValue(dockerContainer.getCommand())
                 .setShell(true);
@@ -226,7 +229,7 @@ public interface MesosTaskFactory {
             commandBuilder.setShell(false);
           }
 
-          taskBuilder.setContainer(getDockerContainerInfo(dockerContainer, Optional.absent()));
+          taskBuilder.setContainer(getDockerContainerInfo(dockerContainer, Optional.absent(), Optional.of(task)));
           List<CommandInfo.URI> mesosFetcherUris = task.getTask().getMesosFetcherUris().stream()
                   .map(u -> Protos.CommandInfo.URI.newBuilder().setValue(u.getValue())
                           .setExecutable(false)
@@ -301,12 +304,23 @@ public interface MesosTaskFactory {
     }
 
     private ContainerInfo getDockerContainerInfo(
-        IDockerContainer config,
-        Optional<String> executorName) {
+            IDockerContainer config,
+            Optional<String> executorName,
+            Optional<IAssignedTask> task) {
 
       Iterable<Protos.Parameter> parameters = Iterables.transform(config.getParameters(),
-          item -> Protos.Parameter.newBuilder().setKey(item.getName())
-            .setValue(item.getValue()).build());
+          item -> {
+            // Templates the Mesos instance ID if the user has requested it.
+            if (task.isPresent()) {
+              String templatedValue = item.getValue().replace(
+                  "{{mesos.instance}}", Integer.toString(task.get().getInstanceId()));
+              return Protos.Parameter.newBuilder().setKey(item.getName())
+                  .setValue(templatedValue).build();
+            } else {
+              return Protos.Parameter.newBuilder().setKey(item.getName())
+                  .setValue(item.getValue()).build();
+            }
+          });
 
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
           .setImage(config.getImage())
