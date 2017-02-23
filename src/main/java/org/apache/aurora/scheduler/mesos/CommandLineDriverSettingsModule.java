@@ -30,14 +30,14 @@ import org.apache.aurora.common.args.CmdLine;
 import org.apache.aurora.common.args.constraints.NotNull;
 import org.apache.aurora.common.quantity.Amount;
 import org.apache.aurora.common.quantity.Time;
-import org.apache.mesos.Protos;
+import org.apache.mesos.v1.Protos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.mesos.Protos.FrameworkInfo;
-import static org.apache.mesos.Protos.FrameworkInfo.Capability;
-import static org.apache.mesos.Protos.FrameworkInfo.Capability.Type.GPU_RESOURCES;
-import static org.apache.mesos.Protos.FrameworkInfo.Capability.Type.REVOCABLE_RESOURCES;
+import static org.apache.mesos.v1.Protos.FrameworkInfo;
+import static org.apache.mesos.v1.Protos.FrameworkInfo.Capability;
+import static org.apache.mesos.v1.Protos.FrameworkInfo.Capability.Type.GPU_RESOURCES;
+import static org.apache.mesos.v1.Protos.FrameworkInfo.Capability.Type.REVOCABLE_RESOURCES;
 
 /**
  * Creates and binds {@link DriverSettings} based on values found on the command line.
@@ -152,6 +152,10 @@ public class CommandLineDriverSettingsModule extends AbstractModule {
   }
 
   @VisibleForTesting
+  // See: https://github.com/apache/mesos/commit/d06d05c76eca13745ca73039b93ad684b9d07196
+  // The role field has been deprecated but the replacement is not ready. We'll also have to
+  // turn on MULTI_ROLES capability before we can use the roles field.
+  @SuppressWarnings("deprecation")
   static FrameworkInfo buildFrameworkInfo(
       String frameworkName,
       String executorUser,

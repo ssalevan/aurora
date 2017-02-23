@@ -30,9 +30,9 @@ import org.apache.aurora.gen.HostAttributes;
 import org.apache.aurora.gen.ScheduleStatus;
 import org.apache.aurora.scheduler.configuration.ConfigurationManager;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
-import org.apache.mesos.Protos;
-import org.apache.mesos.Protos.Offer;
-import org.apache.mesos.Protos.TaskState;
+import org.apache.mesos.v1.Protos;
+import org.apache.mesos.v1.Protos.Offer;
+import org.apache.mesos.v1.Protos.TaskState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +64,13 @@ public final class Conversions {
           .put(TaskState.TASK_KILLED, ScheduleStatus.KILLED)
           .put(TaskState.TASK_LOST, ScheduleStatus.LOST)
           .put(TaskState.TASK_ERROR, ScheduleStatus.LOST)
+          // Task states send to partition-aware Mesos frameworks. Aurora does not advertise the
+          // PARTITION_AWARE capability yet (AURORA-1814). We still map the task states to be safe.
+          .put(TaskState.TASK_UNREACHABLE, ScheduleStatus.LOST)
+          .put(TaskState.TASK_DROPPED, ScheduleStatus.LOST)
+          .put(TaskState.TASK_GONE, ScheduleStatus.LOST)
+          .put(TaskState.TASK_GONE_BY_OPERATOR, ScheduleStatus.LOST)
+          .put(TaskState.TASK_UNKNOWN, ScheduleStatus.LOST)
           .build();
 
   /**
@@ -129,7 +136,7 @@ public final class Conversions {
         FluentIterable.from(valuesByName.asMap().entrySet())
             .transform(ATTRIBUTE_CONVERTER)
             .toSet())
-        .setSlaveId(offer.getSlaveId().getValue()));
+        .setSlaveId(offer.getAgentId().getValue()));
   }
 
   /**

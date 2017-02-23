@@ -36,7 +36,6 @@ import com.google.common.eventbus.Subscribe;
 
 import org.apache.aurora.common.inject.TimedInterceptor.Timed;
 import org.apache.aurora.common.quantity.Time;
-import org.apache.aurora.common.stats.Stats;
 import org.apache.aurora.common.stats.StatsProvider;
 import org.apache.aurora.gen.MaintenanceMode;
 import org.apache.aurora.scheduler.HostOffer;
@@ -47,10 +46,10 @@ import org.apache.aurora.scheduler.events.PubsubEvent.DriverDisconnected;
 import org.apache.aurora.scheduler.events.PubsubEvent.EventSubscriber;
 import org.apache.aurora.scheduler.mesos.Driver;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
-import org.apache.mesos.Protos;
-import org.apache.mesos.Protos.Offer.Operation;
-import org.apache.mesos.Protos.OfferID;
-import org.apache.mesos.Protos.SlaveID;
+import org.apache.mesos.v1.Protos;
+import org.apache.mesos.v1.Protos.AgentID;
+import org.apache.mesos.v1.Protos.Offer.Operation;
+import org.apache.mesos.v1.Protos.OfferID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,7 +127,7 @@ public interface OfferManager extends EventSubscriber {
    * @param slaveId Slave ID to get offer for.
    * @return An offer for the slave ID.
    */
-  Optional<HostOffer> getOffer(SlaveID slaveId);
+  Optional<HostOffer> getOffer(AgentID slaveId);
 
   /**
    * Thrown when there was an unexpected failure trying to launch a task.
@@ -147,14 +146,19 @@ public interface OfferManager extends EventSubscriber {
   class OfferManagerImpl implements OfferManager {
     @VisibleForTesting
     static final Logger LOG = LoggerFactory.getLogger(OfferManagerImpl.class);
+    @VisibleForTesting
+    static final String OFFER_ACCEPT_RACES = "offer_accept_races";
+    @VisibleForTesting
+    static final String OUTSTANDING_OFFERS = "outstanding_offers";
+    @VisibleForTesting
+    static final String STATICALLY_BANNED_OFFERS = "statically_banned_offers_size";
 
     private final HostOffers hostOffers;
-    private final AtomicLong offerRaces = Stats.exportLong("offer_accept_races");
+    private final AtomicLong offerRaces;
 
     private final Driver driver;
     private final OfferSettings offerSettings;
     private final DelayExecutor executor;
-    private final StatsProvider statsProvider;
 
     @Inject
     @VisibleForTesting
@@ -167,8 +171,8 @@ public interface OfferManager extends EventSubscriber {
       this.driver = requireNonNull(driver);
       this.offerSettings = requireNonNull(offerSettings);
       this.executor = requireNonNull(executor);
-      this.statsProvider = requireNonNull(statsProvider);
       this.hostOffers = new HostOffers(statsProvider);
+      this.offerRaces = statsProvider.makeCounter(OFFER_ACCEPT_RACES);
     }
 
     @Override
@@ -178,11 +182,11 @@ public interface OfferManager extends EventSubscriber {
       // them after the return delay.
       // There's also a chance that we return an offer for compaction ~simultaneously with the
       // same-host offer being canceled/returned.  This is also fine.
-      Optional<HostOffer> sameSlave = hostOffers.get(offer.getOffer().getSlaveId());
+      Optional<HostOffer> sameSlave = hostOffers.get(offer.getOffer().getAgentId());
       if (sameSlave.isPresent()) {
         // If there are existing offers for the slave, decline all of them so the master can
         // compact all of those offers into a single offer and send them back.
-        LOG.info("Returning offers for " + offer.getOffer().getSlaveId().getValue()
+        LOG.info("Returning offers for " + offer.getOffer().getAgentId().getValue()
             + " for compaction.");
         decline(offer.getOffer().getId());
         removeAndDecline(sameSlave.get().getOffer().getId());
@@ -235,7 +239,7 @@ public interface OfferManager extends EventSubscriber {
     }
 
     @Override
-    public Optional<HostOffer> getOffer(SlaveID slaveId) {
+    public Optional<HostOffer> getOffer(AgentID slaveId) {
       return hostOffers.get(slaveId);
     }
 
@@ -281,7 +285,7 @@ public interface OfferManager extends EventSubscriber {
 
       private final Set<HostOffer> offers = new ConcurrentSkipListSet<>(PREFERENCE_COMPARATOR);
       private final Map<OfferID, HostOffer> offersById = Maps.newHashMap();
-      private final Map<SlaveID, HostOffer> offersBySlave = Maps.newHashMap();
+      private final Map<AgentID, HostOffer> offersBySlave = Maps.newHashMap();
       private final Map<String, HostOffer> offersByHost = Maps.newHashMap();
       // TODO(maxim): Expose via a debug endpoint. AURORA-1136.
       // Keep track of offer->groupKey mappings that will never be matched to avoid redundant
@@ -291,17 +295,18 @@ public interface OfferManager extends EventSubscriber {
       HostOffers(StatsProvider statsProvider) {
         // Potential gotcha - since this is a ConcurrentSkipListSet, size() is more expensive.
         // Could track this separately if it turns out to pose problems.
-        statsProvider.exportSize("outstanding_offers", offers);
+        statsProvider.exportSize(OUTSTANDING_OFFERS, offers);
+        statsProvider.makeGauge(STATICALLY_BANNED_OFFERS, () -> staticallyBannedOffers.size());
       }
 
-      synchronized Optional<HostOffer> get(SlaveID slaveId) {
+      synchronized Optional<HostOffer> get(AgentID slaveId) {
         return Optional.fromNullable(offersBySlave.get(slaveId));
       }
 
       synchronized void add(HostOffer offer) {
         offers.add(offer);
         offersById.put(offer.getOffer().getId(), offer);
-        offersBySlave.put(offer.getOffer().getSlaveId(), offer);
+        offersBySlave.put(offer.getOffer().getAgentId(), offer);
         offersByHost.put(offer.getOffer().getHostname(), offer);
       }
 
@@ -309,7 +314,7 @@ public interface OfferManager extends EventSubscriber {
         HostOffer removed = offersById.remove(id);
         if (removed != null) {
           offers.remove(removed);
-          offersBySlave.remove(removed.getOffer().getSlaveId());
+          offersBySlave.remove(removed.getOffer().getAgentId());
           offersByHost.remove(removed.getOffer().getHostname());
           staticallyBannedOffers.removeAll(id);
         }

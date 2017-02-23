@@ -34,11 +34,11 @@ tear_down() {
   set +x  # Disable command echo, as this makes it more difficult see which command failed.
 
   for job in http_example http_example_watch_secs http_example_revocable http_example_docker http_example_unified_appc http_example_unified_docker; do
-    aurora update abort devcluster/vagrant/test/$job || true >/dev/null 2>&1
+    aurora update abort devcluster/vagrant/test/$job >/dev/null 2>&1 || true
     aurora job killall --no-batching devcluster/vagrant/test/$job >/dev/null 2>&1
   done
 
-  sudo mv /etc/aurora/clusters.json.old /etc/aurora/clusters.json || true > /dev/null 2>&1
+  sudo mv /etc/aurora/clusters.json.old /etc/aurora/clusters.json >/dev/null 2>&1 || true
 }
 
 collect_result() {
@@ -269,9 +269,11 @@ test_run() {
 
 test_kill() {
   local _jobkey=$1
+  shift 1
+  local _extra_args="${@}"
 
-  aurora job kill $_jobkey/1
-  aurora job killall $_jobkey
+  aurora job kill $_jobkey/1 $_extra_args
+  aurora job killall $_jobkey $_extra_args
 }
 
 test_quota() {
@@ -346,6 +348,7 @@ test_http_example() {
   test_observer_ui $_cluster $_role $_job
   test_discovery_info $_task_id_prefix $_discovery_name
   test_thermos_profile $_jobkey
+  test_file_mount $_cluster $_role $_env $_job
   test_restart $_jobkey
   test_update $_jobkey $_updated_config $_cluster $_bind_parameters
   test_update_fail $_jobkey $_base_config  $_cluster $_bad_healthcheck_config $_bind_parameters
@@ -476,6 +479,21 @@ test_appc_unified() {
   [[ "$num_mounts_before" = "$num_mounts_after" ]]
 }
 
+test_file_mount() {
+  local _cluster=$1 _role=$2 _env=$3 _job=$4
+
+  if [[ "$_job" = "$TEST_JOB_UNIFIED_DOCKER" ]]; then
+    local _jobkey="$_cluster/$_role/$_env/$_job"
+
+    verify_file_mount_output=$(aurora task ssh $_jobkey/0 --command='tail -1 .logs/verify_file_mount/0/stdout' |tr -d '\r\n' 2>/dev/null)
+    echo "$verify_file_mount_output"
+    [[ "$verify_file_mount_output" = "$(cat /vagrant/.auroraversion |tr -d '\r\n')" ]]
+    return $?
+  fi
+
+  return 0
+}
+
 test_docker_unified() {
   num_mounts_before=$(mount |wc -l |tr -d '\n')
 
@@ -547,6 +565,8 @@ TEST_DAEMONIZING_PROCESS_ARGS=(
   $TEST_DAEMONIZING_PROCESS_CONFIG_FILE
 )
 
+TEST_JOB_KILL_MESSAGE_ARGS=("${TEST_JOB_ARGS[@]}" "--message='Test message'")
+
 trap collect_result EXIT
 
 aurorabuild all
@@ -561,6 +581,8 @@ test_health_check
 test_http_example_basic "${TEST_JOB_REVOCABLE_ARGS[@]}"
 
 test_http_example_basic "${TEST_JOB_GPU_ARGS[@]}"
+
+test_http_example_basic "${TEST_JOB_KILL_MESSAGE_ARGS[@]}"
 
 test_http_example "${TEST_JOB_DOCKER_ARGS[@]}"
 

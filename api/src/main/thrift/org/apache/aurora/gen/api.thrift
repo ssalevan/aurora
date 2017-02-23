@@ -639,6 +639,9 @@ const set<JobUpdateStatus> ACTIVE_JOB_UPDATE_STATES = [JobUpdateStatus.ROLLING_F
                                                        JobUpdateStatus.ROLL_BACK_PAUSED,
                                                        JobUpdateStatus.ROLL_FORWARD_AWAITING_PULSE,
                                                        JobUpdateStatus.ROLL_BACK_AWAITING_PULSE]
+/** States the job update can be in while waiting for a pulse. */
+const set<JobUpdateStatus> AWAITNG_PULSE_JOB_UPDATE_STATES = [JobUpdateStatus.ROLL_FORWARD_AWAITING_PULSE,
+                                                              JobUpdateStatus.ROLL_BACK_AWAITING_PULSE]
 
 /** Job update actions that can be applied to job instances. */
 enum JobUpdateAction {
@@ -1095,7 +1098,7 @@ service AuroraSchedulerManager extends ReadOnlyScheduler {
   Response restartShards(5: JobKey job, 3: set<i32> shardIds)
 
   /** Initiates a kill on tasks. */
-  Response killTasks(4: JobKey job, 5: set<i32> instances)
+  Response killTasks(4: JobKey job, 5: set<i32> instances, 6: string message)
 
   /**
    * Adds new instances with the TaskConfig of the existing instance pointed by the key.
@@ -1250,6 +1253,13 @@ service AuroraAdmin extends AuroraSchedulerManager {
 
   /** Tell scheduler to trigger an implicit task reconciliation. */
   Response triggerImplicitTaskReconciliation()
+
+  /**
+   * Force prune any (terminal) tasks that match the query. If no statuses are supplied with the
+   * query, it will default to all terminal task states. If statuses are supplied, they must be
+   * terminal states.
+   */
+  Response pruneTasks(1: TaskQuery query)
 }
 
 // The name of the header that should be sent to bypass leader redirection in the Scheduler.

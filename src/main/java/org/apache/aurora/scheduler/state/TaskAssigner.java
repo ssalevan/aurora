@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import org.apache.aurora.common.inject.TimedInterceptor.Timed;
-import org.apache.aurora.common.stats.Stats;
+import org.apache.aurora.common.stats.StatsProvider;
 import org.apache.aurora.scheduler.HostOffer;
 import org.apache.aurora.scheduler.TierInfo;
 import org.apache.aurora.scheduler.TierManager;
@@ -41,7 +41,7 @@ import org.apache.aurora.scheduler.offers.OfferManager;
 import org.apache.aurora.scheduler.resources.ResourceManager;
 import org.apache.aurora.scheduler.resources.ResourceType;
 import org.apache.aurora.scheduler.storage.entities.IAssignedTask;
-import org.apache.mesos.Protos.TaskInfo;
+import org.apache.mesos.v1.Protos.TaskInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +50,7 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.aurora.gen.ScheduleStatus.LOST;
 import static org.apache.aurora.gen.ScheduleStatus.PENDING;
 import static org.apache.aurora.scheduler.storage.Storage.MutableStoreProvider;
-import static org.apache.mesos.Protos.Offer;
+import static org.apache.mesos.v1.Protos.Offer;
 
 /**
  * Responsible for matching a task against an offer and launching it.
@@ -80,8 +80,13 @@ public interface TaskAssigner {
     @VisibleForTesting
     static final Optional<String> LAUNCH_FAILED_MSG =
         Optional.of("Unknown exception attempting to schedule task.");
+    @VisibleForTesting
+    static final String ASSIGNER_LAUNCH_FAILURES = "assigner_launch_failures";
+    @VisibleForTesting
+    static final String ASSIGNER_EVALUATED_OFFERS = "assigner_evaluated_offers";
 
-    private final AtomicLong launchFailures = Stats.exportLong("assigner_launch_failures");
+    private final AtomicLong launchFailures;
+    private final AtomicLong evaluatedOffers;
 
     private final StateManager stateManager;
     private final SchedulingFilter filter;
@@ -95,13 +100,16 @@ public interface TaskAssigner {
         SchedulingFilter filter,
         MesosTaskFactory taskFactory,
         OfferManager offerManager,
-        TierManager tierManager) {
+        TierManager tierManager,
+        StatsProvider statsProvider) {
 
       this.stateManager = requireNonNull(stateManager);
       this.filter = requireNonNull(filter);
       this.taskFactory = requireNonNull(taskFactory);
       this.offerManager = requireNonNull(offerManager);
       this.tierManager = requireNonNull(tierManager);
+      this.launchFailures = statsProvider.makeCounter(ASSIGNER_LAUNCH_FAILURES);
+      this.evaluatedOffers = statsProvider.makeCounter(ASSIGNER_EVALUATED_OFFERS);
     }
 
     @VisibleForTesting
@@ -125,11 +133,11 @@ public interface TaskAssigner {
           storeProvider,
           taskId,
           host,
-          offer.getSlaveId(),
+          offer.getAgentId(),
           task -> mapAndAssignResources(offer, task));
       LOG.info(
           "Offer on agent {} (id {}) is being assigned task for {}.",
-          host, offer.getSlaveId().getValue(), taskId);
+          host, offer.getAgentId().getValue(), taskId);
       return taskFactory.createFrom(assigned, offer);
     }
 
@@ -152,8 +160,10 @@ public interface TaskAssigner {
       String taskId = remainingTasks.next();
 
       for (HostOffer offer : offerManager.getOffers(groupKey)) {
+        evaluatedOffers.incrementAndGet();
+
         Optional<TaskGroupKey> reservedGroup = Optional.fromNullable(
-            slaveReservations.get(offer.getOffer().getSlaveId().getValue()));
+            slaveReservations.get(offer.getOffer().getAgentId().getValue()));
 
         if (reservedGroup.isPresent() && !reservedGroup.get().equals(groupKey)) {
           // This slave is reserved for a different task group -> skip.
