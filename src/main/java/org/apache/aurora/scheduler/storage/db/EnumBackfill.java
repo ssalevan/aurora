@@ -15,12 +15,7 @@ package org.apache.aurora.scheduler.storage.db;
 
 import javax.inject.Inject;
 
-import org.apache.aurora.gen.CronCollisionPolicy;
-import org.apache.aurora.gen.JobUpdateAction;
-import org.apache.aurora.gen.JobUpdateStatus;
-import org.apache.aurora.gen.MaintenanceMode;
-import org.apache.aurora.gen.Mode;
-import org.apache.aurora.gen.ScheduleStatus;
+import org.apache.aurora.gen.*;
 
 import org.apache.aurora.scheduler.resources.ResourceType;
 
@@ -69,6 +64,11 @@ public interface EnumBackfill {
 
       for (Mode mode : Mode.values()) {
         enumValueMapper.addEnumValue("volume_modes", mode.getValue(), mode.name());
+      }
+
+      for (DockerNetwork dockerNetwork : DockerNetwork.values()) {
+        enumValueMapper.addEnumValue("docker_networks", dockerNetwork.getValue(),
+            dockerNetwork.name());
       }
     }
   }

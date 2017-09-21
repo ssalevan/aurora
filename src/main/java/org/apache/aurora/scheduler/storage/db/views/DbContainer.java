@@ -15,6 +15,7 @@ package org.apache.aurora.scheduler.storage.db.views;
 
 import org.apache.aurora.gen.Container;
 import org.apache.aurora.gen.DockerContainer;
+import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.gen.MesosContainer;
 
 

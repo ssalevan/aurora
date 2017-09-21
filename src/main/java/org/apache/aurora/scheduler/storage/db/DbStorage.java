@@ -26,7 +26,6 @@ import com.google.inject.Inject;
 
 import org.apache.aurora.common.inject.TimedInterceptor.Timed;
 import org.apache.aurora.common.stats.StatsProvider;
-import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.scheduler.async.AsyncModule.AsyncExecutor;
 import org.apache.aurora.scheduler.async.GatedWorkQueue;
 import org.apache.aurora.scheduler.async.GatedWorkQueue.GatedOperation;
@@ -211,11 +210,6 @@ class DbStorage extends AbstractIdleService implements Storage {
     }
 
     enumBackfill.backfill();
-
-    for (DockerNetwork dockerNetwork : DockerNetwork.values()) {
-      enumValueMapper.addEnumValue("docker_networks", dockerNetwork.getValue(),
-          dockerNetwork.name());
-    }
 
     createPoolMetrics();
   }
