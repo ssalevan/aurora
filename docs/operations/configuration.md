@@ -29,13 +29,42 @@ Like Mesos, Aurora uses command-line flags for runtime configuration. As such th
     # Environment variables controlling libmesos
     export JAVA_HOME=...
     export GLOG_v=1
-    # Port and public ip used to communicate with the Mesos master and for the replicated log
     export LIBPROCESS_PORT=8083
     export LIBPROCESS_IP=192.168.33.7
 
     JAVA_OPTS="${JAVA_OPTS[*]}" exec "$AURORA_HOME/bin/aurora-scheduler" "${AURORA_FLAGS[@]}"
 
 That way Aurora's current flags are visible in `ps` and in the `/vars` admin endpoint.
+
+
+## JVM Configuration
+
+JVM settings are dependent on your environment and cluster size. They might require
+custom tuning. As a starting point, we recommend:
+
+* Ensure the initial (`-Xms`) and maximum (`-Xmx`) heap size are idential to prevent heap resizing
+  at runtime.
+* Either `-XX:+UseConcMarkSweepGC` or `-XX:+UseG1GC -XX:+UseStringDeduplication` are
+  sane defaults for the garbage collector.
+* `-Djava.net.preferIPv4Stack=true` makes sense in most cases as well.
+
+
+## Network Configuration
+
+By default, Aurora binds to all interfaces and auto-discovers its hostname. To reduce ambiguity
+it helps to hardcode them though:
+
+    -http_port=8081
+    -ip=192.168.33.7
+    -hostname="aurora1.us-east1.example.org"
+
+Two environment variables control the ip and port for the communication with the Mesos master
+and for the replicated log used by Aurora:
+
+    export LIBPROCESS_PORT=8083
+    export LIBPROCESS_IP=192.168.33.7
+
+It is important that those can be reached from all Mesos master and Aurora scheduler instances.
 
 
 ## Replicated Log Configuration
@@ -64,8 +93,13 @@ should be set to `3`.
 *Incorrectly setting this flag will cause data corruption to occur!*
 
 ### `-native_log_file_path`
-Location of the Mesos replicated log files. Consider allocating a dedicated disk (preferably SSD)
-for Mesos replicated log files to ensure optimal storage performance.
+Location of the Mesos replicated log files. For optimal and consistent performance, consider
+allocating a dedicated disk (preferably SSD) for the replicated log. Ensure that this disk is not
+used by anything else (e.g. no process logging) and in particular that it is a real disk
+and not just a partition.
+
+Even when a dedicated disk is used, switching from `CFQ` to `deadline` I/O scheduler of Linux kernel
+can furthermore help with storage performance in Aurora ([see this ticket for details](https://issues.apache.org/jira/browse/AURORA-1211)).
 
 ### `-native_log_zk_group_path`
 ZooKeeper path used for Mesos replicated log quorum discovery.
@@ -91,8 +125,10 @@ or truncating of the replicated log used by Aurora. In that case, see the docume
 
 Configuration options for the Aurora scheduler backup manager.
 
-* `-backup_interval`: The interval on which the scheduler writes local storage backups.  The default is every hour.
-* `-backup_dir`: Directory to write backups to.
+* `-backup_interval`: The interval on which the scheduler writes local storage backups.
+   The default is every hour.
+* `-backup_dir`: Directory to write backups to. As stated above, this should not be co-located on the
+   same disk as the replicated log.
 * `-max_saved_backups`: Maximum number of backups to retain before deleting the oldest backup(s).
 
 
@@ -135,6 +171,23 @@ Unless you want to use the [default](../../src/main/resources/org/apache/aurora/
 tier configuration, you will also have to specify a file path:
 
     -tier_config=path/to/tiers/config.json
+
+
+## Multi-Framework Setup
+
+Aurora holds onto Mesos offers in order to provide efficient scheduling and
+[preemption](../features/multitenancy.md#preemption). This is problematic in multi-framework
+environments as Aurora might starve other frameworks.
+
+With a downside of increased scheduling latency, Aurora can be configured to be more cooperative:
+
+* Lowering `-min_offer_hold_time` (e.g. to `1mins`) can ensure unused offers are returned back to
+  Mesos more frequently.
+* Increasing `-offer_filter_duration` (e.g to `30secs`) will instruct Mesos
+  not to re-offer rejected resources for the given duration.
+
+Setting a [minimum amount of resources](http://mesos.apache.org/documentation/latest/quota/) for
+each Mesos role can furthermore help to ensure no framework is starved entirely.
 
 
 ## Containers
@@ -249,3 +302,38 @@ Increasing executor overhead on an existing cluster, whether it be for custom ex
 will result in degraded preemption performance until all task which began life with the previous
 executor configuration with less overhead are preempted/restarted.
 
+## Controlling MTTA via Update Affinity
+
+When there is high resource contention in your cluster you may experience noticably elevated job update
+times, as well as high task churn across the cluster. This is due to Aurora's first-fit scheduling
+algorithm. To alleviate this, you can enable update affinity where the Scheduler will make a best-effort
+attempt to reuse the same agent for the updated task (so long as the resources for the job are not being
+increased).
+
+To enable this in the Scheduler, you can set the following options:
+
+    --enable_update_affinity=true
+    --update_affinity_reservation_hold_time=3mins
+
+You will need to tune the hold time to match the behavior you see in your cluster. If you have extremely
+high update throughput, you might have to extend it as processing updates could easily add significant
+delays between scheduling attempts. You may also have to tune scheduling parameters to achieve the
+throughput you need in your cluster. Some relevant settings (with defaults) are:
+
+    --max_schedule_attempts_per_sec=40
+    --initial_schedule_penalty=1secs
+    --max_schedule_penalty=1mins
+    --scheduling_max_batch_size=3
+    --max_tasks_per_schedule_attempt=5
+
+There are metrics exposed by the Scheduler which can provide guidance on where the bottleneck is.
+Example metrics to look at:
+
+    - schedule_attempts_blocks (if this number is greater than 0, then task throughput is hitting
+                                limits controlled by --max_scheduler_attempts_per_sec)
+    - scheduled_task_penalty_* (metrics around scheduling penalties for tasks, if the numbers here are high
+                                then you could have high contention for resources)
+
+Most likely you'll run into limits with the number of update instances that can be processed per minute
+before you run into any other limits. So if your total work done per minute starts to exceed 2k instances,
+you may need to extend the update_affinity_reservation_hold_time.

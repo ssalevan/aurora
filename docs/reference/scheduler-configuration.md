@@ -190,6 +190,8 @@ Optional flags:
 	If true, Aurora populates DiscoveryInfo field of Mesos TaskInfo.
 -preemption_delay (default (3, mins))
 	Time interval after which a pending task becomes eligible to preempt other tasks
+-preemption_slot_finder_modules (default [class org.apache.aurora.scheduler.preemptor.PendingTaskProcessorModule, class org.apache.aurora.scheduler.preemptor.PreemptionVictimFilterModule])
+  Guice modules for replacing preemption logic.
 -preemption_slot_hold_time (default (5, mins))
 	Time to hold a preemption slot found before it is discarded.
 -preemption_slot_search_interval (default (1, mins))
@@ -234,6 +236,8 @@ Optional flags:
 	Time for a stat to be retained in memory before expiring.
 -stat_sampling_interval (default (1, secs))
 	Statistic value sampling interval.
+-task_assigner_modules (default [class org.apache.aurora.scheduler.state.FirstFitTaskAssignerModule])
+  Guice modules for replacing task assignment logic.
 -thermos_executor_cpu (default 0.25)
 	The number of CPU cores to allocate for each instance of the executor.
 -thermos_executor_flags
@@ -244,6 +248,8 @@ Optional flags:
 	A comma separated list of additional resources to copy into the sandbox.Note: if thermos_executor_path is not the thermos_executor.pex file itself, this must include it.
 -thermos_home_in_sandbox (default false)
 	If true, changes HOME to the sandbox before running the executor. This primarily has the effect of causing the executor and runner to extract themselves into the sandbox.
+-thrift_method_interceptor_modules (default [])
+	Additional Guice modules for intercepting Thrift method calls.
 -transient_task_state_timeout (default (5, mins))
 	The amount of time after which to treat a task stuck in a transient state as LOST.
 -use_beta_db_task_store (default false)

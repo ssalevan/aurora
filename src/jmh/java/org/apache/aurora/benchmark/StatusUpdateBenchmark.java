@@ -61,8 +61,12 @@ import org.apache.aurora.scheduler.filter.SchedulingFilterImpl;
 import org.apache.aurora.scheduler.mesos.Driver;
 import org.apache.aurora.scheduler.mesos.DriverFactory;
 import org.apache.aurora.scheduler.mesos.DriverSettings;
+import org.apache.aurora.scheduler.mesos.FrameworkInfoFactory;
+import org.apache.aurora.scheduler.mesos.MesosCallbackHandler;
+import org.apache.aurora.scheduler.mesos.MesosCallbackHandler.MesosCallbackHandlerImpl;
 import org.apache.aurora.scheduler.mesos.MesosSchedulerImpl;
 import org.apache.aurora.scheduler.mesos.ProtosConversion;
+import org.apache.aurora.scheduler.mesos.SchedulerDriverModule;
 import org.apache.aurora.scheduler.mesos.TestExecutorSettings;
 import org.apache.aurora.scheduler.offers.OfferManager;
 import org.apache.aurora.scheduler.preemptor.ClusterStateImpl;
@@ -183,8 +187,10 @@ public class StatusUpdateBenchmark {
             bind(Driver.class).toInstance(new FakeDriver());
             bind(Scheduler.class).to(MesosSchedulerImpl.class);
             bind(MesosSchedulerImpl.class).in(Singleton.class);
+            bind(MesosCallbackHandler.class).to(MesosCallbackHandlerImpl.class);
+            bind(MesosCallbackHandlerImpl.class).in(Singleton.class);
             bind(Executor.class)
-                .annotatedWith(MesosSchedulerImpl.SchedulerExecutor.class)
+                .annotatedWith(SchedulerDriverModule.SchedulerExecutor.class)
                 .toInstance(AsyncUtil.singleThreadLoggingScheduledExecutor(
                     "SchedulerImpl-%d",
                     LoggerFactory.getLogger(StatusUpdateBenchmark.class)));
@@ -202,11 +208,11 @@ public class StatusUpdateBenchmark {
             bind(DriverSettings.class).toInstance(
                 new DriverSettings(
                     "fakemaster",
-                    Optional.absent(),
-                    Protos.FrameworkInfo.newBuilder()
-                        .setUser("framework user")
-                        .setName("test framework")
-                        .build()));
+                    Optional.absent()));
+            bind(FrameworkInfoFactory.class).toInstance(() -> Protos.FrameworkInfo.newBuilder()
+                    .setUser("framework user")
+                    .setName("test framework")
+                    .build());
             bind(RescheduleCalculator.class).toInstance(new FakeRescheduleCalculator());
             bind(Clock.class).toInstance(new FakeClock());
             bind(ExecutorSettings.class).toInstance(TestExecutorSettings.THERMOS_EXECUTOR);

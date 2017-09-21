@@ -41,6 +41,8 @@ import org.apache.mesos.v1.Protos;
 import org.apache.mesos.v1.Protos.Filters;
 import org.apache.mesos.v1.Protos.Offer.Operation;
 import org.apache.mesos.v1.Protos.TaskInfo;
+import org.apache.mesos.v1.Protos.TimeInfo;
+import org.apache.mesos.v1.Protos.Unavailability;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -48,12 +50,18 @@ import static org.apache.aurora.gen.MaintenanceMode.DRAINING;
 import static org.apache.aurora.gen.MaintenanceMode.NONE;
 import static org.apache.aurora.scheduler.base.TaskTestUtil.JOB;
 import static org.apache.aurora.scheduler.base.TaskTestUtil.makeTask;
+import static org.apache.aurora.scheduler.offers.OfferManager.OfferManagerImpl.GLOBALLY_BANNED_OFFERS;
 import static org.apache.aurora.scheduler.offers.OfferManager.OfferManagerImpl.OFFER_ACCEPT_RACES;
+import static org.apache.aurora.scheduler.offers.OfferManager.OfferManagerImpl.OFFER_CANCEL_FAILURES;
 import static org.apache.aurora.scheduler.offers.OfferManager.OfferManagerImpl.OUTSTANDING_OFFERS;
 import static org.apache.aurora.scheduler.offers.OfferManager.OfferManagerImpl.STATICALLY_BANNED_OFFERS;
 import static org.apache.aurora.scheduler.resources.ResourceTestUtil.mesosRange;
+import static org.apache.aurora.scheduler.resources.ResourceTestUtil.mesosScalar;
 import static org.apache.aurora.scheduler.resources.ResourceTestUtil.offer;
+import static org.apache.aurora.scheduler.resources.ResourceType.CPUS;
+import static org.apache.aurora.scheduler.resources.ResourceType.DISK_MB;
 import static org.apache.aurora.scheduler.resources.ResourceType.PORTS;
+import static org.apache.aurora.scheduler.resources.ResourceType.RAM_MB;
 import static org.easymock.EasyMock.expectLastCall;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -62,6 +70,7 @@ import static org.junit.Assert.fail;
 public class OfferManagerImplTest extends EasyMockTest {
 
   private static final Amount<Long, Time> RETURN_DELAY = Amount.of(1L, Time.DAYS);
+  private static final Amount<Long, Time> ONE_HOUR = Amount.of(1L, Time.HOURS);
   private static final String HOST_A = "HOST_A";
   private static final IHostAttributes HOST_ATTRIBUTES_A =
       IHostAttributes.build(new HostAttributes().setMode(NONE).setHost(HOST_A));
@@ -109,13 +118,42 @@ public class OfferManagerImplTest extends EasyMockTest {
     addTearDown(clock::assertEmpty);
     OfferSettings offerSettings = new OfferSettings(
         Amount.of(OFFER_FILTER_SECONDS, Time.SECONDS),
-        () -> RETURN_DELAY);
+        () -> RETURN_DELAY,
+        ImmutableList.of(OfferOrder.RANDOM));
     statsProvider = new FakeStatsProvider();
     offerManager = new OfferManagerImpl(driver, offerSettings, statsProvider, executorMock);
   }
 
   @Test
-  public void testOffersSorted() throws Exception {
+  public void testOffersSortedByUnavailability() throws Exception {
+    clock.advance(Amount.of(1L, Time.HOURS));
+
+    HostOffer hostOfferB = setUnavailability(OFFER_B, clock.nowMillis());
+    Long offerCStartTime = clock.nowMillis() + ONE_HOUR.as(Time.MILLISECONDS);
+    HostOffer hostOfferC = setUnavailability(OFFER_C, offerCStartTime);
+
+    driver.declineOffer(OFFER_B.getOffer().getId(), OFFER_FILTER);
+    driver.declineOffer(OFFER_A.getOffer().getId(), OFFER_FILTER);
+    driver.declineOffer(OFFER_C.getOffer().getId(), OFFER_FILTER);
+
+    control.replay();
+
+    offerManager.addOffer(hostOfferB);
+    offerManager.addOffer(OFFER_A);
+    offerManager.addOffer(hostOfferC);
+
+    List<HostOffer> actual = ImmutableList.copyOf(offerManager.getOffers());
+
+    assertEquals(
+        // hostOfferC has a further away start time, so it should be preferred.
+        ImmutableList.of(OFFER_A, hostOfferC, hostOfferB),
+        actual);
+
+    clock.advance(RETURN_DELAY);
+  }
+
+  @Test
+  public void testOffersSortedByMaintenance() throws Exception {
     // Ensures that non-DRAINING offers are preferred - the DRAINING offer would be tried last.
 
     HostOffer offerA = setMode(OFFER_A, DRAINING);
@@ -198,6 +236,7 @@ public class OfferManagerImplTest extends EasyMockTest {
     assertEquals(1L, statsProvider.getLongValue(OUTSTANDING_OFFERS));
 
     offerManager.cancelOffer(OFFER_A_ID);
+    assertEquals(0L, statsProvider.getLongValue(OFFER_CANCEL_FAILURES));
     assertTrue(Iterables.isEmpty(offerManager.getOffers()));
     assertEquals(0L, statsProvider.getLongValue(OUTSTANDING_OFFERS));
 
@@ -212,14 +251,14 @@ public class OfferManagerImplTest extends EasyMockTest {
     control.replay();
 
     // Static ban ignored when now offers.
-    offerManager.banOffer(OFFER_A_ID, GROUP_KEY);
+    offerManager.banOfferForTaskGroup(OFFER_A_ID, GROUP_KEY);
     assertEquals(0L, statsProvider.getLongValue(STATICALLY_BANNED_OFFERS));
     offerManager.addOffer(OFFER_A);
     assertEquals(OFFER_A, Iterables.getOnlyElement(offerManager.getOffers(GROUP_KEY)));
     assertEquals(OFFER_A, Iterables.getOnlyElement(offerManager.getOffers()));
 
     // Add static ban.
-    offerManager.banOffer(OFFER_A_ID, GROUP_KEY);
+    offerManager.banOfferForTaskGroup(OFFER_A_ID, GROUP_KEY);
     assertEquals(1L, statsProvider.getLongValue(STATICALLY_BANNED_OFFERS));
     assertEquals(OFFER_A, Iterables.getOnlyElement(offerManager.getOffers()));
     assertTrue(Iterables.isEmpty(offerManager.getOffers(GROUP_KEY)));
@@ -236,7 +275,7 @@ public class OfferManagerImplTest extends EasyMockTest {
     control.replay();
 
     offerManager.addOffer(OFFER_A);
-    offerManager.banOffer(OFFER_A_ID, GROUP_KEY);
+    offerManager.banOfferForTaskGroup(OFFER_A_ID, GROUP_KEY);
     assertEquals(OFFER_A, Iterables.getOnlyElement(offerManager.getOffers()));
     assertTrue(Iterables.isEmpty(offerManager.getOffers(GROUP_KEY)));
     assertEquals(1L, statsProvider.getLongValue(STATICALLY_BANNED_OFFERS));
@@ -258,7 +297,7 @@ public class OfferManagerImplTest extends EasyMockTest {
     control.replay();
 
     offerManager.addOffer(OFFER_A);
-    offerManager.banOffer(OFFER_A_ID, GROUP_KEY);
+    offerManager.banOfferForTaskGroup(OFFER_A_ID, GROUP_KEY);
     assertEquals(OFFER_A, Iterables.getOnlyElement(offerManager.getOffers()));
     assertTrue(Iterables.isEmpty(offerManager.getOffers(GROUP_KEY)));
     assertEquals(1L, statsProvider.getLongValue(STATICALLY_BANNED_OFFERS));
@@ -325,6 +364,14 @@ public class OfferManagerImplTest extends EasyMockTest {
   }
 
   @Test
+  public void testCancelFailure() throws Exception {
+    control.replay();
+
+    offerManager.cancelOffer(OFFER_A.getOffer().getId());
+    assertEquals(1L, statsProvider.getLongValue(OFFER_CANCEL_FAILURES));
+  }
+
+  @Test
   public void testDeclineOffer() throws Exception {
     driver.declineOffer(OFFER_A.getOffer().getId(), OFFER_FILTER);
     expectLastCall();
@@ -337,9 +384,199 @@ public class OfferManagerImplTest extends EasyMockTest {
     assertEquals(0L, statsProvider.getLongValue(OUTSTANDING_OFFERS));
   }
 
+  @Test
+  public void testBanAndUnbanOffer() throws Exception {
+    driver.declineOffer(OFFER_A.getOffer().getId(), OFFER_FILTER);
+    expectLastCall().times(2);
+    control.replay();
+
+    // After adding a banned offer, user can see it is in OUTSTANDING_OFFERS but cannot retrieve it.
+    offerManager.banOffer(OFFER_A_ID);
+    offerManager.addOffer(OFFER_A);
+    assertEquals(1L, statsProvider.getLongValue(OUTSTANDING_OFFERS));
+    assertEquals(1L, statsProvider.getLongValue(GLOBALLY_BANNED_OFFERS));
+    assertTrue(Iterables.isEmpty(offerManager.getOffers(GROUP_KEY)));
+    clock.advance(RETURN_DELAY);
+
+    offerManager.cancelOffer(OFFER_A_ID);
+    offerManager.addOffer(OFFER_A);
+    assertEquals(1L, statsProvider.getLongValue(OUTSTANDING_OFFERS));
+    assertEquals(0L, statsProvider.getLongValue(GLOBALLY_BANNED_OFFERS));
+    assertEquals(OFFER_A, Iterables.getOnlyElement(offerManager.getOffers(GROUP_KEY)));
+    clock.advance(RETURN_DELAY);
+  }
+
+  private static HostOffer setUnavailability(HostOffer offer, Long startMs) {
+    Unavailability unavailability = Unavailability.newBuilder()
+        .setStart(TimeInfo.newBuilder().setNanoseconds(startMs * 1000L)).build();
+    return new HostOffer(
+        offer.getOffer().toBuilder().setUnavailability(unavailability).build(),
+        offer.getAttributes());
+  }
+
   private static HostOffer setMode(HostOffer offer, MaintenanceMode mode) {
     return new HostOffer(
         offer.getOffer(),
         IHostAttributes.build(offer.getAttributes().newBuilder().setMode(mode)));
+  }
+
+  private OfferManager createOrderedManager(List<OfferOrder> order) {
+    OfferSettings settings = new OfferSettings(
+        Amount.of(OFFER_FILTER_SECONDS, Time.SECONDS),
+        () -> RETURN_DELAY,
+        order);
+    DelayExecutor executorMock = createMock(DelayExecutor.class);
+    clock = FakeScheduledExecutor.fromDelayExecutor(executorMock);
+    return new OfferManagerImpl(driver, settings, statsProvider, executorMock);
+  }
+
+  @Test
+  public void testCPUOrdering() throws Exception {
+    OfferManager cpuManager = createOrderedManager(ImmutableList.of(OfferOrder.CPU));
+
+    HostOffer small = setMode(new HostOffer(
+        offer("host1", mesosScalar(CPUS, 1.0), mesosScalar(CPUS, 24.0, true)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer medium = setMode(new HostOffer(
+        offer("host2", mesosScalar(CPUS, 5.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer large = setMode(new HostOffer(
+        offer("host3", mesosScalar(CPUS, 10.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    control.replay();
+
+    cpuManager.addOffer(medium);
+    cpuManager.addOffer(large);
+    cpuManager.addOffer(small);
+
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers(GROUP_KEY)));
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers()));
+  }
+
+  @Test
+  public void testRevocableCPUOrdering() throws Exception {
+    OfferManager cpuManager = createOrderedManager(ImmutableList.of(OfferOrder.REVOCABLE_CPU));
+
+    HostOffer small = setMode(new HostOffer(
+        offer("host2", mesosScalar(CPUS, 5.0), mesosScalar(CPUS, 23.0, true)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer medium = setMode(new HostOffer(
+        offer("host1", mesosScalar(CPUS, 3.0), mesosScalar(CPUS, 24.0, true)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer large = setMode(new HostOffer(
+        offer("host3", mesosScalar(CPUS, 1.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    control.replay();
+
+    cpuManager.addOffer(medium);
+    cpuManager.addOffer(large);
+    cpuManager.addOffer(small);
+
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers(GROUP_KEY)));
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers()));
+  }
+
+  @Test
+  public void testDiskOrdering() throws Exception {
+    OfferManager cpuManager = createOrderedManager(ImmutableList.of(OfferOrder.DISK));
+
+    HostOffer small = setMode(new HostOffer(
+        offer("host1", mesosScalar(DISK_MB, 1.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer medium = setMode(new HostOffer(
+        offer("host2", mesosScalar(DISK_MB, 5.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer large = setMode(new HostOffer(
+        offer("host3", mesosScalar(DISK_MB, 10.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    control.replay();
+
+    cpuManager.addOffer(medium);
+    cpuManager.addOffer(large);
+    cpuManager.addOffer(small);
+
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers(GROUP_KEY)));
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers()));
+  }
+
+  @Test
+  public void testMemoryOrdering() throws Exception {
+    OfferManager cpuManager = createOrderedManager(ImmutableList.of(OfferOrder.MEMORY));
+
+    HostOffer small = setMode(new HostOffer(
+        offer("host1", mesosScalar(RAM_MB, 1.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer medium = setMode(new HostOffer(
+        offer("host2", mesosScalar(RAM_MB, 5.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer large = setMode(new HostOffer(
+        offer("host3", mesosScalar(RAM_MB, 10.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    control.replay();
+
+    cpuManager.addOffer(medium);
+    cpuManager.addOffer(large);
+    cpuManager.addOffer(small);
+
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers(GROUP_KEY)));
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers()));
+  }
+
+  @Test
+  public void testCPUMemoryOrdering() throws Exception {
+    OfferManager cpuManager = createOrderedManager(
+        ImmutableList.of(OfferOrder.CPU, OfferOrder.MEMORY));
+
+    HostOffer small = setMode(new HostOffer(
+        offer("host1",
+            mesosScalar(CPUS, 1.0),
+            mesosScalar(RAM_MB, 2.0),
+            mesosScalar(DISK_MB, 3.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer medium = setMode(new HostOffer(
+        offer("host2",
+            mesosScalar(CPUS, 1.0),
+            mesosScalar(RAM_MB, 3.0),
+            mesosScalar(DISK_MB, 2.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    HostOffer large = setMode(new HostOffer(
+        offer("host3",
+            mesosScalar(CPUS, 10.0),
+            mesosScalar(CPUS, 1.0),
+            mesosScalar(DISK_MB, 1.0)),
+        HOST_ATTRIBUTES_A), DRAINING);
+
+    control.replay();
+
+    cpuManager.addOffer(large);
+    cpuManager.addOffer(medium);
+    cpuManager.addOffer(small);
+
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers(GROUP_KEY)));
+    assertEquals(ImmutableList.of(small, medium, large),
+        ImmutableList.copyOf(cpuManager.getOffers()));
   }
 }

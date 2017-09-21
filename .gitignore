@@ -4,10 +4,14 @@
 *.iws
 *.pyc
 *~
+*bundle.js*
 .gradle
 /.cache/
 /.coverage
 /.idea/
+/.settings/
+/.classpath/
+/.project/
 /.pants.*
 /.pids/
 /.vagrant/
@@ -30,3 +34,6 @@
 /out/
 /requirements.txt
 /third_party/
+/ui/dist/
+/ui/node_modules/
+/ui/out/

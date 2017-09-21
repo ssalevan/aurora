@@ -19,6 +19,7 @@ Below is a sample configuration:
 ```
 
 And an example of a response that you will get back:
+
 ```json
 {
     "task":
@@ -78,3 +79,34 @@ And an example of a response that you will get back:
         "oldState":{}}
 ```
 
+By default, the webhook watches all TaskStateChanges and sends events to configured endpoint. If you
+are only interested in certain types of TaskStateChange (transition to `LOST` or `FAILED` statuses),
+you can specify a whitelist of the desired task statuses in webhook.json. The webhook will only send
+the corresponding events for the whitelisted statuses to the configured endpoint.
+
+```json
+{
+  "headers": {
+    "Content-Type": "application/vnd.kafka.json.v1+json",
+    "Producer-Type": "reliable"
+  },
+  "targetURL": "http://localhost:5000/",
+  "timeoutMsec": 50,
+  "statuses": ["LOST", "FAILED"]
+}
+```
+
+If you want to whitelist all TaskStateChanges, you can add a wildcard character `*` to your whitelist
+like below, or simply leave out the `statuses` field in webhook.json.
+
+```json
+{
+  "headers": {
+    "Content-Type": "application/vnd.kafka.json.v1+json",
+    "Producer-Type": "reliable"
+  },
+  "targetURL": "http://localhost:5000/",
+  "timeoutMsec": 50,
+  "statuses": ["*"]
+}
+```

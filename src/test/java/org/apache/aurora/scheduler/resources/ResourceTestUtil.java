@@ -63,8 +63,7 @@ public final class ResourceTestUtil {
   }
 
   public static ITaskConfig resetPorts(ITaskConfig config, Set<String> portNames) {
-    TaskConfig builder = config.newBuilder()
-        .setRequestedPorts(portNames);
+    TaskConfig builder = config.newBuilder();
     builder.getResources().removeIf(e -> fromResource(IResource.build(e)).equals(PORTS));
     portNames.forEach(e -> builder.addToResources(Resource.namedPort(e)));
     return ITaskConfig.build(builder);
@@ -133,10 +132,14 @@ public final class ResourceTestUtil {
   }
 
   public static Protos.Offer offer(Protos.Resource... resources) {
+    return offer("slave-id", resources);
+  }
+
+  public static Protos.Offer offer(String agentId, Protos.Resource... resources) {
     return Protos.Offer.newBuilder()
         .setId(Protos.OfferID.newBuilder().setValue("offer-id"))
         .setFrameworkId(Protos.FrameworkID.newBuilder().setValue("framework-id"))
-        .setAgentId(Protos.AgentID.newBuilder().setValue("slave-id"))
+        .setAgentId(Protos.AgentID.newBuilder().setValue(agentId))
         .setHostname("hostname")
         .addAllResources(ImmutableSet.copyOf(resources)).build();
   }

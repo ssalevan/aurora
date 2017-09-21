@@ -43,7 +43,6 @@ import static java.util.Objects.requireNonNull;
 
 import static org.apache.aurora.scheduler.resources.ResourceType.CPUS;
 import static org.apache.aurora.scheduler.resources.ResourceType.DISK_MB;
-import static org.apache.aurora.scheduler.resources.ResourceType.PORTS;
 import static org.apache.aurora.scheduler.resources.ResourceType.RAM_MB;
 
 /**
@@ -60,9 +59,10 @@ public final class ThriftBackfill {
 
   private static Resource getResource(Set<Resource> resources, ResourceType type) {
     return resources.stream()
-        .filter(e -> ResourceType.fromResource(IResource.build(e)).equals(type))
-        .findFirst()
-        .orElseThrow(() -> new IllegalArgumentException("Missing resource definition for " + type));
+            .filter(e -> ResourceType.fromResource(IResource.build(e)).equals(type))
+            .findFirst()
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Missing resource definition for " + type));
   }
 
   /**
@@ -72,27 +72,6 @@ public final class ThriftBackfill {
    * @return Backfilled TaskConfig.
    */
   public TaskConfig backfillTask(TaskConfig config) {
-    if (!config.isSetResources() || config.getResources().isEmpty()) {
-      config.addToResources(Resource.numCpus(config.getNumCpus()));
-      config.addToResources(Resource.ramMb(config.getRamMb()));
-      config.addToResources(Resource.diskMb(config.getDiskMb()));
-      if (config.isSetRequestedPorts()) {
-        for (String port : config.getRequestedPorts()) {
-          config.addToResources(Resource.namedPort(port));
-        }
-      }
-    } else {
-      config.setNumCpus(getResource(config.getResources(), CPUS).getNumCpus());
-      config.setRamMb(getResource(config.getResources(), RAM_MB).getRamMb());
-      config.setDiskMb(getResource(config.getResources(), DISK_MB).getDiskMb());
-      Set<String> ports = config.getResources().stream()
-          .filter(e -> ResourceType.fromResource(IResource.build(e)).equals(PORTS))
-          .map(Resource::getNamedPort)
-          .collect(GuavaUtils.toImmutableSet());
-      if (!ports.isEmpty()) {
-        config.setRequestedPorts(ports);
-      }
-    }
     backfillTier(config);
     return config;
   }
@@ -162,9 +141,12 @@ public final class ThriftBackfill {
 
         throw new IllegalArgumentException("Quota resources must be exactly: " + quotaResources);
       }
-      aggregate.setNumCpus(getResource(aggregate.getResources(), CPUS).getNumCpus());
-      aggregate.setRamMb(getResource(aggregate.getResources(), RAM_MB).getRamMb());
-      aggregate.setDiskMb(getResource(aggregate.getResources(), DISK_MB).getDiskMb());
+      aggregate.setNumCpus(
+              getResource(aggregate.getResources(), CPUS).getNumCpus());
+      aggregate.setRamMb(
+              getResource(aggregate.getResources(), RAM_MB).getRamMb());
+      aggregate.setDiskMb(
+              getResource(aggregate.getResources(), DISK_MB).getDiskMb());
     }
     return IResourceAggregate.build(aggregate);
   }

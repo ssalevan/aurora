@@ -87,15 +87,11 @@ public class ConfigurationManagerTest {
               .setIsService(false)
               .setTaskLinks(ImmutableMap.of())
               .setExecutorConfig(new ExecutorConfig(apiConstants.AURORA_EXECUTOR_NAME, "config"))
-              .setRequestedPorts(ImmutableSet.of())
               .setPriority(0)
               .setOwner(null)
               .setContactEmail("foo@twitter.com")
               .setProduction(false)
-              .setDiskMb(1)
               .setMetadata(null)
-              .setNumCpus(1.0)
-              .setRamMb(1)
               .setMaxTaskFailures(0)
               .setConstraints(
                   ImmutableSet.of(
@@ -260,17 +256,6 @@ public class ConfigurationManagerTest {
 
     expectTaskDescriptionException("Only r may use hosts dedicated for that role.");
     CONFIGURATION_MANAGER.validateAndPopulate(ITaskConfig.build(builder));
-  }
-
-  @Test
-  public void testTaskResourceBackfill() throws Exception {
-    TaskConfig builder = CONFIG_WITH_CONTAINER.newBuilder();
-    builder.unsetResources();
-
-    assertFalse(builder.isSetResources());
-    ITaskConfig populated =
-        DOCKER_CONFIGURATION_MANAGER.validateAndPopulate(ITaskConfig.build(builder));
-    assertEquals(CONFIG_WITH_CONTAINER.getResources(), populated.getResources());
   }
 
   @Test

@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.inject.Singleton;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -52,7 +53,9 @@ import org.apache.aurora.scheduler.filter.SchedulingFilterImpl;
 import org.apache.aurora.scheduler.mesos.Driver;
 import org.apache.aurora.scheduler.mesos.TestExecutorSettings;
 import org.apache.aurora.scheduler.offers.OfferManager;
+import org.apache.aurora.scheduler.offers.OfferOrder;
 import org.apache.aurora.scheduler.offers.OfferSettings;
+import org.apache.aurora.scheduler.offers.OffersModule;
 import org.apache.aurora.scheduler.preemptor.BiCache;
 import org.apache.aurora.scheduler.preemptor.ClusterStateImpl;
 import org.apache.aurora.scheduler.preemptor.PendingTaskProcessor;
@@ -67,6 +70,7 @@ import org.apache.aurora.scheduler.storage.db.DbUtil;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
 import org.apache.aurora.scheduler.storage.entities.IScheduledTask;
 import org.apache.aurora.scheduler.storage.entities.IServerInfo;
+import org.apache.aurora.scheduler.updater.UpdateAgentReserver;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -140,7 +144,10 @@ public class SchedulingBenchmarks {
               bind(OfferManager.class).to(OfferManager.OfferManagerImpl.class);
               bind(OfferManager.OfferManagerImpl.class).in(Singleton.class);
               bind(OfferSettings.class).toInstance(
-                  new OfferSettings(NO_DELAY, () -> DELAY_FOREVER));
+                  new OfferSettings(
+                      NO_DELAY,
+                      () -> DELAY_FOREVER,
+                      ImmutableList.of(OfferOrder.RANDOM)));
               bind(BiCache.BiCacheSettings.class).toInstance(
                   new BiCache.BiCacheSettings(DELAY_FOREVER, ""));
               bind(TaskScheduler.class).to(TaskScheduler.TaskSchedulerImpl.class);
@@ -156,6 +163,11 @@ public class SchedulingBenchmarks {
                   .annotatedWith(ReservationDuration.class)
                   .toInstance(DELAY_FOREVER);
               bind(TaskIdGenerator.class).to(TaskIdGenerator.TaskIdGeneratorImpl.class);
+              bind(new TypeLiteral<Amount<Long, Time>>() { })
+                  .annotatedWith(OffersModule.UnavailabilityThreshold.class)
+                  .toInstance(Amount.of(1L, Time.MINUTES));
+              bind(UpdateAgentReserver.class).to(UpdateAgentReserver.NullAgentReserver.class);
+              bind(UpdateAgentReserver.NullAgentReserver.class).in(Singleton.class);
               bind(SchedulingFilter.class).to(SchedulingFilterImpl.class);
               bind(SchedulingFilterImpl.class).in(Singleton.class);
               bind(ExecutorSettings.class).toInstance(TestExecutorSettings.THERMOS_EXECUTOR);

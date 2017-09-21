@@ -56,6 +56,7 @@ import org.apache.aurora.scheduler.events.WebhookModule;
 import org.apache.aurora.scheduler.http.HttpService;
 import org.apache.aurora.scheduler.log.mesos.MesosLogStreamModule;
 import org.apache.aurora.scheduler.mesos.CommandLineDriverSettingsModule;
+import org.apache.aurora.scheduler.mesos.FrameworkInfoFactory.FrameworkInfoFactoryImpl.SchedulerProtocol;
 import org.apache.aurora.scheduler.mesos.LibMesosLoadingModule;
 import org.apache.aurora.scheduler.stats.StatsModule;
 import org.apache.aurora.scheduler.storage.Storage;
@@ -82,6 +83,7 @@ public class SchedulerMain {
   @CmdLine(name = "serverset_path", help = "ZooKeeper ServerSet path to register at.")
   private static final Arg<String> SERVERSET_PATH = Arg.create();
 
+  // TODO(zmanji): Consider making this an enum of HTTP or HTTPS.
   @CmdLine(name = "serverset_endpoint_name",
       help = "Name of the scheduler endpoint published in ZooKeeper.")
   private static final Arg<String> SERVERSET_ENDPOINT_NAME = Arg.create("http");
@@ -92,6 +94,33 @@ public class SchedulerMain {
 
   @CmdLine(name = "allow_gpu_resource", help = "Allow jobs to request Mesos GPU resource.")
   private static final Arg<Boolean> ALLOW_GPU_RESOURCE = Arg.create(false);
+
+  public enum DriverKind {
+    // TODO(zmanji): Remove this option once V0_DRIVER has been proven out in production.
+    // This is the original driver that libmesos shipped with. Uses unversioned protobufs, and has
+    // minimal backwards compatability guarantees.
+    SCHEDULER_DRIVER,
+    // These are the new drivers that libmesos ships with. They use versioned (V1) protobufs for
+    // the Java API.
+    // V0 Driver offers the V1 API over the old Scheduler Driver. It does not fully support
+    // the V1 API (ie mesos maintenance).
+    V0_DRIVER,
+    // V1 Driver offers the V1 API over a full HTTP API implementation. It allows for maintenance
+    // primatives and other new features.
+    V1_DRIVER,
+  }
+
+  @CmdLine(name = "mesos_driver", help = "Which Mesos Driver to use")
+  private static final Arg<DriverKind> DRIVER_IMPL = Arg.create(DriverKind.SCHEDULER_DRIVER);
+
+  public static class ProtocolModule extends AbstractModule {
+    @Override
+    protected void configure() {
+      bind(String.class)
+          .annotatedWith(SchedulerProtocol.class)
+          .toInstance(SERVERSET_ENDPOINT_NAME.get());
+    }
+  }
 
   @Inject private SingletonService schedulerService;
   @Inject private HttpService httpService;
@@ -139,9 +168,10 @@ public class SchedulerMain {
   @VisibleForTesting
   static Module getUniversalModule() {
     return Modules.combine(
+        new ProtocolModule(),
         new LifecycleModule(),
         new StatsModule(),
-        new AppModule(ALLOW_GPU_RESOURCE.get()),
+        new AppModule(ALLOW_GPU_RESOURCE.get(), DRIVER_IMPL.get()),
         new CronModule(),
         new DbModule.MigrationManagerModule(),
         DbModule.productionModule(Bindings.annotatedKeyFactory(Storage.Volatile.class)),
@@ -203,7 +233,7 @@ public class SchedulerMain {
     List<Module> modules = ImmutableList.<Module>builder()
         .add(
             new CommandLineDriverSettingsModule(ALLOW_GPU_RESOURCE.get()),
-            new LibMesosLoadingModule(),
+            new LibMesosLoadingModule(DRIVER_IMPL.get()),
             new MesosLogStreamModule(FlaggedZooKeeperConfig.create()),
             new LogStorageModule(),
             new TierModule(),

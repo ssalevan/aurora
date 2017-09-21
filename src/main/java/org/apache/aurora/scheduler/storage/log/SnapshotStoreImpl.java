@@ -30,13 +30,19 @@ import javax.inject.Inject;
 import javax.inject.Qualifier;
 import javax.sql.DataSource;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.apache.aurora.common.inject.TimedInterceptor.Timed;
+import org.apache.aurora.common.stats.SlidingStats;
+import org.apache.aurora.common.stats.SlidingStats.Timeable;
 import org.apache.aurora.common.util.BuildInfo;
 import org.apache.aurora.common.util.Clock;
 import org.apache.aurora.gen.HostAttributes;
@@ -56,6 +62,7 @@ import org.apache.aurora.scheduler.storage.Storage;
 import org.apache.aurora.scheduler.storage.Storage.MutableStoreProvider;
 import org.apache.aurora.scheduler.storage.Storage.MutateWork.NoResult;
 import org.apache.aurora.scheduler.storage.Storage.Volatile;
+import org.apache.aurora.scheduler.storage.db.EnumBackfill;
 import org.apache.aurora.scheduler.storage.db.MigrationManager;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
 import org.apache.aurora.scheduler.storage.entities.IJobConfiguration;
@@ -75,6 +82,11 @@ import static java.util.Objects.requireNonNull;
  * extracting/applying fields in a snapshot thrift struct.
  */
 public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
+
+  @VisibleForTesting
+  static final String SNAPSHOT_SAVE = "snapshot_save_";
+  @VisibleForTesting
+  static final String SNAPSHOT_RESTORE = "snapshot_restore_";
 
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotStoreImpl.class);
 
@@ -177,6 +189,10 @@ public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
             } catch (SQLException e) {
               throw new RuntimeException(e);
             }
+
+            // This ensures any subsequently added enum values since the last snapshot exist in
+            // the db.
+            enumBackfill.backfill();
           }
         }
       },
@@ -425,6 +441,7 @@ public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
   private final Set<String> hydrateSnapshotFields;
   private final MigrationManager migrationManager;
   private final ThriftBackfill thriftBackfill;
+  private final EnumBackfill enumBackfill;
 
   /**
    * Identifies if experimental task store is in use.
@@ -450,7 +467,8 @@ public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
       @ExperimentalTaskStore boolean useDbSnapshotForTaskStore,
       @HydrateSnapshotFields Set<String> hydrateSnapshotFields,
       MigrationManager migrationManager,
-      ThriftBackfill thriftBackfill) {
+      ThriftBackfill thriftBackfill,
+      EnumBackfill enumBackfill) {
 
     this.buildInfo = requireNonNull(buildInfo);
     this.clock = requireNonNull(clock);
@@ -459,6 +477,7 @@ public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
     this.hydrateSnapshotFields = requireNonNull(hydrateSnapshotFields);
     this.migrationManager = requireNonNull(migrationManager);
     this.thriftBackfill = requireNonNull(thriftBackfill);
+    this.enumBackfill = requireNonNull(enumBackfill);
   }
 
   @Timed("snapshot_create")
@@ -473,7 +492,7 @@ public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
       // one of the field closures is mean and tries to apply a timestamp.
       long timestamp = clock.nowMillis();
       for (SnapshotField field : snapshotFields) {
-        field.saveToSnapshot(storeProvider, snapshot);
+        field.save(storeProvider, snapshot);
       }
 
       SchedulerMetadata metadata = new SchedulerMetadata()
@@ -495,16 +514,35 @@ public class SnapshotStoreImpl implements SnapshotStore<Snapshot> {
       LOG.info("Restoring snapshot.");
 
       for (SnapshotField field : snapshotFields) {
-        field.restoreFromSnapshot(storeProvider, snapshot);
+        field.restore(storeProvider, snapshot);
       }
     });
   }
 
-  private interface SnapshotField {
-    String getName();
+  abstract class SnapshotField {
 
-    void saveToSnapshot(MutableStoreProvider storeProvider, Snapshot snapshot);
+    abstract String getName();
 
-    void restoreFromSnapshot(MutableStoreProvider storeProvider, Snapshot snapshot);
+    abstract void saveToSnapshot(MutableStoreProvider storeProvider, Snapshot snapshot);
+
+    abstract void restoreFromSnapshot(MutableStoreProvider storeProvider, Snapshot snapshot);
+
+    void save(MutableStoreProvider storeProvider, Snapshot snapshot) {
+      stats.getUnchecked(SNAPSHOT_SAVE + getName())
+          .time((Timeable.NoResult.Quiet) () -> saveToSnapshot(storeProvider, snapshot));
+    }
+
+    void restore(MutableStoreProvider storeProvider, Snapshot snapshot) {
+      stats.getUnchecked(SNAPSHOT_RESTORE + getName())
+          .time((Timeable.NoResult.Quiet) () -> restoreFromSnapshot(storeProvider, snapshot));
+    }
   }
+
+  private final LoadingCache<String, SlidingStats> stats = CacheBuilder.newBuilder().build(
+      new CacheLoader<String, SlidingStats>() {
+        @Override
+        public SlidingStats load(String name) throws Exception {
+          return new SlidingStats(name, "nanos");
+        }
+      });
 }

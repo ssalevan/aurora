@@ -13,29 +13,42 @@
  */
 package org.apache.aurora.scheduler.offers;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.util.List;
+
 import com.google.common.base.Supplier;
+import com.google.common.collect.Ordering;
 
 import org.apache.aurora.common.quantity.Amount;
 import org.apache.aurora.common.quantity.Time;
+import org.apache.aurora.scheduler.HostOffer;
 
 import static java.util.Objects.requireNonNull;
 
 /**
  * Settings required to create an OfferManager.
  */
-@VisibleForTesting
 public class OfferSettings {
 
   private final Amount<Long, Time> offerFilterDuration;
   private final Supplier<Amount<Long, Time>> returnDelaySupplier;
+  private final Ordering<HostOffer> offerOrder;
 
   public OfferSettings(
       Amount<Long, Time> offerFilterDuration,
-      Supplier<Amount<Long, Time>> returnDelaySupplier) {
+      Supplier<Amount<Long, Time>> returnDelaySupplier,
+      List<OfferOrder> offerOrder) {
+
+    this(offerFilterDuration, returnDelaySupplier, OfferOrderBuilder.create(offerOrder));
+  }
+
+  OfferSettings(
+      Amount<Long, Time> offerFilterDuration,
+      Supplier<Amount<Long, Time>> returnDelaySupplier,
+      Ordering<HostOffer> offerOrder) {
 
     this.offerFilterDuration = requireNonNull(offerFilterDuration);
     this.returnDelaySupplier = requireNonNull(returnDelaySupplier);
+    this.offerOrder = requireNonNull(offerOrder);
   }
 
   /**
@@ -51,5 +64,12 @@ public class OfferSettings {
    */
   public Amount<Long, Time> getOfferReturnDelay() {
     return returnDelaySupplier.get();
+  }
+
+  /**
+   * The ordering to use when fetching offers from OfferManager.
+   */
+  public Ordering<HostOffer> getOfferOrder() {
+    return offerOrder;
   }
 }

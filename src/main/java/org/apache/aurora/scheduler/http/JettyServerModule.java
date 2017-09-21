@@ -206,6 +206,7 @@ public class JettyServerModule extends AbstractModule {
       "pendingtasks",
       "quotas",
       "slaves",
+      "state",
       "tiers",
       "utilization"
   );
@@ -227,6 +228,7 @@ public class JettyServerModule extends AbstractModule {
           .put(Quotas.class, "quotas")
           .put(Services.class, "services")
           .put(StructDump.class, "structdump")
+          .put(State.class, "state")
           .put(ThreadStackPrinter.class, "threads")
           .put(Tiers.class, "tiers")
           .put(TimeSeriesDataSource.class, "graphdata")
@@ -322,6 +324,7 @@ public class JettyServerModule extends AbstractModule {
             .put("/graphview(?:/index.html)?", "/assets/graphview/graphview.html")
             .put("/graphview/(.*)", "/assets/graphview/$1")
             .put("/(?:scheduler|updates)(?:/.*)?", "/assets/scheduler/index.html")
+            .put("/beta/(?:scheduler|updates)(?:/.*)?", "/assets/scheduler/new-index.html")
             .put("/slaves", "/agents")
             .build();
 

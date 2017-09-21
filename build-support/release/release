@@ -19,6 +19,11 @@
 set -e
 set -o nounset
 
+# If GPG_TTY is unset, set it to the default tty. Otherwise git will not prompt
+# for a passpharse for the GPG-key and silently fail when trying to create signed
+# commits/tags.
+export GPG_TTY=${GPG_TTY:-$(tty)}
+
 aurora_git_web_url='https://git-wip-us.apache.org/repos/asf?p=aurora.git'
 aurora_svn_dist_url='https://dist.apache.org/repos/dist/release/aurora'
 aurora_svn_dev_dist_url='https://dist.apache.org/repos/dist/dev/aurora'
@@ -125,6 +130,22 @@ if [[ $publish == 0 ]]; then
 fi
 
 dist_name="apache-aurora-${current_version}"
+dist_dir=${base_dir}/dist
+
+function print_reset_instructions {
+cat <<EOF
+To roll back your local repo you will need to run:
+
+  rm -rf ${dist_dir}
+EOF
+}
+
+# If anything goes wrong from here then print roll back instructions before exiting.
+function print_rollback_instructions {
+  echo "ERROR: Looks like something has failed while creating the release."
+  print_reset_instructions
+}
+trap print_rollback_instructions EXIT
 
 if [[ $publish == 1 ]]; then
   # Create release branch and tag and push them to the origin
@@ -140,7 +161,6 @@ if [[ $publish == 1 ]]; then
   git push origin "${current_version_tag}"
 fi
 
-dist_dir=${base_dir}/dist
 rc_dir=${dist_dir}/rc
 release_dir=${dist_dir}/${current_version}
 mkdir -p ${rc_dir}
@@ -244,7 +264,9 @@ if [[ $publish == 0 ]]; then
   echo
   echo "This is a dry run, nothing has been published."
   echo
-  echo "To clean up run: rm -rf ${dist_dir}"
+  print_reset_instructions
 fi
 
+# Unset error message handler and exit
+trap '' EXIT
 exit 0

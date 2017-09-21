@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.hash.Hashing;
+import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.Atomics;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -71,6 +72,7 @@ import org.apache.aurora.scheduler.log.Log.Position;
 import org.apache.aurora.scheduler.log.Log.Stream;
 import org.apache.aurora.scheduler.mesos.DriverFactory;
 import org.apache.aurora.scheduler.mesos.DriverSettings;
+import org.apache.aurora.scheduler.mesos.FrameworkInfoFactory;
 import org.apache.aurora.scheduler.mesos.TestExecutorSettings;
 import org.apache.aurora.scheduler.storage.backup.BackupModule;
 import org.apache.aurora.scheduler.storage.entities.IHostAttributes;
@@ -116,19 +118,24 @@ public class SchedulerIT extends BaseZooKeeperClientTest {
   private static final String SERVERSET_PATH = "/fake/service/path";
   private static final String STATS_URL_PREFIX = "fake_url";
   private static final String FRAMEWORK_ID = "integration_test_framework_id";
+  private static final Protos.MasterInfo MASTER = Protos.MasterInfo.newBuilder()
+      .setId("master-id")
+      .setIp(InetAddresses.coerceToInteger(InetAddresses.forString("1.2.3.4"))) //NOPMD
+      .setPort(5050).build();
   private static final IHostAttributes HOST_ATTRIBUTES = IHostAttributes.build(new HostAttributes()
       .setHost("host")
       .setSlaveId("slave-id")
       .setMode(MaintenanceMode.NONE)
       .setAttributes(ImmutableSet.of()));
 
-  private static final DriverSettings SETTINGS = new DriverSettings(
-      "fakemaster",
-      Optional.absent(),
-      FrameworkInfo.newBuilder()
+  private static final FrameworkInfo BASE_INFO = FrameworkInfo.newBuilder()
           .setUser("framework user")
           .setName("test framework")
-          .build());
+          .build();
+
+  private static final DriverSettings SETTINGS = new DriverSettings(
+      "fakemaster",
+      Optional.absent());
 
   private final ExecutorService executor = Executors.newCachedThreadPool(
       new ThreadFactoryBuilder().setNameFormat("SchedulerIT-%d").setDaemon(true).build());
@@ -182,6 +189,7 @@ public class SchedulerIT extends BaseZooKeeperClientTest {
       @Override
       protected void configure() {
         bind(DriverFactory.class).toInstance(driverFactory);
+        bind(FrameworkInfoFactory.class).toInstance(() -> BASE_INFO);
         bind(DriverSettings.class).toInstance(SETTINGS);
         bind(Log.class).toInstance(log);
         Set<Resource> overhead = ImmutableSet.of(
@@ -294,7 +302,7 @@ public class SchedulerIT extends BaseZooKeeperClientTest {
     expect(driverFactory.create(
         capture(scheduler),
         eq(SETTINGS.getCredentials()),
-        eq(SETTINGS.getFrameworkInfo()),
+        eq(BASE_INFO),
         eq(SETTINGS.getMasterUri())))
         .andReturn(driver).anyTimes();
 
@@ -336,7 +344,7 @@ public class SchedulerIT extends BaseZooKeeperClientTest {
     scheduler.getValue().registered(
         driver,
         Protos.FrameworkID.newBuilder().setValue(FRAMEWORK_ID).build(),
-        Protos.MasterInfo.getDefaultInstance());
+        MASTER);
 
     awaitSchedulerReady();
 
