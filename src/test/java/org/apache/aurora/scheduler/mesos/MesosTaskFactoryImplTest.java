@@ -435,28 +435,6 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
   }
 
   @Test
-  public void testDockerTaskWithoutExecutor() {
-    AssignedTask builder = TASK.newBuilder();
-    builder.getTask()
-        .setContainer(Container.docker(new DockerContainer()
-            .setImage("hello-world")))
-        .unsetExecutorConfig();
-
-    TaskInfo task = getDockerTaskInfo(IAssignedTask.build(builder));
-    assertTrue(task.hasCommand());
-    assertFalse(task.getCommand().getShell());
-    assertFalse(task.hasData());
-    ContainerInfo expectedContainer = ContainerInfo.newBuilder()
-        .setType(Type.DOCKER)
-        .setDocker(DockerInfo.newBuilder()
-            .setImage("hello-world")
-            .setForcePullImage(false))
-        .build();
-    assertEquals(expectedContainer, task.getContainer());
-    checkDiscoveryInfoUnset(task);
-  }
-
-  @Test
   public void testPopulateDiscoveryInfoNoPort() {
     config = new ExecutorSettings(
         ImmutableMap.<String, ExecutorConfig>builder().put(THERMOS_CONFIG.getExecutor().getName(),
