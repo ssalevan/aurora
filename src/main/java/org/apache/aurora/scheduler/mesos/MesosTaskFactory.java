@@ -210,6 +210,15 @@ public interface MesosTaskFactory {
                   Optional.of(task)));
           taskBuilder.setExecutor(execBuilder.build());
         }
+
+        // Sets a Docker command override if one is specified on the DockerContainer.
+        if (dockerContainer.isSetCommand() && dockerContainer.getCommand().length() > 0) {
+          taskBuilder.setCommand(
+              taskBuilder.getCommand().toBuilder()
+                  .setValue(dockerContainer.getCommand())
+                  .setShell(true)
+                  .build());
+        }
       } else {
         throw new SchedulerException("Task had no supported container set.");
       }
@@ -321,13 +330,14 @@ public interface MesosTaskFactory {
                   ? executorSettings.getExecutorConfig(executorName.get()).get().getVolumeMounts()
                   : ImmutableList.of());
 
-      // If we're using a user-defined Docker network, creates a new NetworkInfo to pass this context
-      // along to Mesos.
-      if (config.getNetwork() == DockerNetwork.USER && config.isSetUserNetwork()) {
+      // If we're using a user-defined Docker network, creates a new NetworkInfo to pass
+      // this context along to Docker.
+      if (config.isSetNetwork() && config.getNetwork() == DockerNetwork.USER && config.isSetUserNetwork()) {
         NetworkInfo.Builder networkInfoBuilder = NetworkInfo.newBuilder()
             .setName(config.getUserNetwork());
         containerBuilder.addNetworkInfos(networkInfoBuilder.build());
       }
+
       return containerBuilder.build();
     }
 
