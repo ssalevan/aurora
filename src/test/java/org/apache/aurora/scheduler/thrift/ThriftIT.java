@@ -193,6 +193,7 @@ public class ThriftIT extends EasyMockTest {
         .setTier(TaskTestUtil.DEV_TIER_NAME)
         .setContainer(Container.docker(new DockerContainer()
             .setImage("image")
+            .setForcePullImage(false)
             .setParameters(
                 ImmutableList.of(new DockerParameter("a", "b"), new DockerParameter("c", "d")))));
     JobConfiguration job = new JobConfiguration()

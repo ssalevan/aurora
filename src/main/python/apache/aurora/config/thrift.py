@@ -38,6 +38,7 @@ from gen.apache.aurora.api.ttypes import (
     CronCollisionPolicy,
     DockerContainer,
     DockerImage,
+    DockerNetwork,
     DockerParameter,
     ExecutorConfig,
     Identity,
@@ -46,6 +47,7 @@ from gen.apache.aurora.api.ttypes import (
     JobKey,
     LimitConstraint,
     MesosContainer,
+    MesosFetcherURI,
     Metadata,
     Mode,
     PartitionPolicy,
@@ -94,6 +96,17 @@ def constraints_to_thrift(constraints):
   return result
 
 
+def fetcher_uris_to_thrift(fetcher_uris):
+  mesos_fetcher_uris = []
+  for fetcher_uri in fetcher_uris:
+    mesos_fetcher_uri = MesosFetcherURI()
+    mesos_fetcher_uri.value = fully_interpolated(fetcher_uri.value())
+    mesos_fetcher_uri.extract = fully_interpolated(fetcher_uri.extract(), bool)
+    mesos_fetcher_uri.cache = fully_interpolated(fetcher_uri.cache(), bool)
+    mesos_fetcher_uris.append(mesos_fetcher_uri)
+  return mesos_fetcher_uris
+
+
 def task_instance_from_job(job, instance, hostname):
   instance_context = MesosContext(instance=instance, hostname=hostname)
   health_check_config = HealthCheckConfig()
@@ -138,6 +151,10 @@ def select_cron_policy(cron_policy):
   return parse_enum(CronCollisionPolicy, cron_policy)
 
 
+def select_docker_network(docker_network):
+  return parse_enum(DockerNetwork, docker_network)
+
+
 def select_service_bit(job):
   return fully_interpolated(job.service(), bool)
 
@@ -147,15 +164,22 @@ def create_docker_container(container):
   if container.parameters() is not Empty:
     for p in fully_interpolated(container.parameters()):
       params.append(DockerParameter(p['name'], p['value']))
-  return DockerContainer(fully_interpolated(container.image()), params)
+  return DockerContainer(
+      fully_interpolated(container.image()),
+      params,
+      fully_interpolated(container.force_pull_image(), bool),
+      select_docker_network(container.network()),
+      fully_interpolated(container.user_network()),
+      fully_interpolated(container.command()))
+
+
+def is_docker_container(c):
+  return isinstance(c, PystachioContainer) and c.docker() is not None
 
 
 def create_container_config(container):
   if container is Empty:
     return Container(MesosContainer(), None)
-
-  def is_docker_container(c):
-    return isinstance(c, PystachioContainer) and c.docker() is not None
 
   unwrapped = container.unwrap()
   if isinstance(unwrapped, Docker) or is_docker_container(unwrapped):
@@ -315,6 +339,7 @@ def convert(job, metadata=frozenset(), ports=frozenset()):
   task.taskLinks = {}  # See AURORA-739
   task.constraints = constraints_to_thrift(not_empty_or(job.constraints(), {}))
   task.container = create_container_config(job.container())
+  task.mesosFetcherUris = fetcher_uris_to_thrift(job.fetcher_uris())
 
   underlying, refs = job.interpolate()
 

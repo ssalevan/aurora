@@ -15,7 +15,7 @@
 # Disable checkstyle for this entire file as it is a pystachio schema.
 # checkstyle: noqa
 
-from pystachio import Choice
+from pystachio import Choice, Enum
 
 from apache.thermos.config.schema import *
 
@@ -109,6 +109,12 @@ class Announcer(Struct):
   zk_path      = String
 
 
+class FetcherURI(Struct):
+  value   = Required(String)
+  extract = Default(Boolean, False)
+  cache   = Default(Boolean, False)
+
+
 # The executorConfig populated inside of TaskConfig.
 class MesosTaskInstance(Struct):
   task                = Required(Task)
@@ -128,6 +134,10 @@ class Parameter(Struct):
 class Docker(Struct):
   image = Required(String)
   parameters = Default(List(Parameter), [])
+  force_pull_image = Default(Boolean, False)
+  network = Default(String, 'HOST')
+  user_network = Default(String, '')
+  command = Default(String, '')
 
 
 class AppcImage(Struct):
@@ -194,6 +204,7 @@ class MesosJob(Struct):
   # TODO(wickman) Make Default(Any, LifecycleConfig()) once pystachio #17 is addressed.
   lifecycle                  = Default(LifecycleConfig, DefaultLifecycleConfig)
   task_links                 = Map(String, String)  # Unsupported.  See AURORA-739
+  fetcher_uris               = Default(List(FetcherURI), [])
   executor_config            = Default(ExecutorConfig, ExecutorConfig())
 
   enable_hooks = Default(Boolean, False)  # enable client API hooks; from env python-list 'hooks'

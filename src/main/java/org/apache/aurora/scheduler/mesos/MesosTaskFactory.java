@@ -27,6 +27,7 @@ import com.google.protobuf.ByteString;
 
 import org.apache.aurora.Protobufs;
 import org.apache.aurora.codec.ThriftBinaryCodec;
+import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.scheduler.base.JobKeys;
 import org.apache.aurora.scheduler.base.SchedulerException;
 import org.apache.aurora.scheduler.base.Tasks;
@@ -37,6 +38,7 @@ import org.apache.aurora.scheduler.resources.ResourceManager;
 import org.apache.aurora.scheduler.storage.entities.IAppcImage;
 import org.apache.aurora.scheduler.storage.entities.IAssignedTask;
 import org.apache.aurora.scheduler.storage.entities.IDockerContainer;
+import org.apache.aurora.scheduler.storage.entities.IDockerParameter;
 import org.apache.aurora.scheduler.storage.entities.IDockerImage;
 import org.apache.aurora.scheduler.storage.entities.IImage;
 import org.apache.aurora.scheduler.storage.entities.IJobKey;
@@ -51,6 +53,7 @@ import org.apache.mesos.v1.Protos.ExecutorID;
 import org.apache.mesos.v1.Protos.ExecutorInfo;
 import org.apache.mesos.v1.Protos.Label;
 import org.apache.mesos.v1.Protos.Labels;
+import org.apache.mesos.v1.Protos.NetworkInfo;
 import org.apache.mesos.v1.Protos.Offer;
 import org.apache.mesos.v1.Protos.Port;
 import org.apache.mesos.v1.Protos.Resource;
@@ -198,16 +201,14 @@ public interface MesosTaskFactory {
         taskBuilder.setExecutor(executorInfoBuilder.build());
       } else if (config.getContainer().isSetDocker()) {
         IDockerContainer dockerContainer = config.getContainer().getDocker();
+
         if (config.isSetExecutorConfig()) {
           ExecutorInfo.Builder execBuilder = configureTaskForExecutor(task, acceptedOffer)
               .setContainer(getDockerContainerInfo(
                   dockerContainer,
-                  Optional.of(getExecutorName(task))));
+                  Optional.of(getExecutorName(task)),
+                  Optional.of(task)));
           taskBuilder.setExecutor(execBuilder.build());
-        } else {
-          LOG.warn("Running Docker-based task without an executor.");
-          taskBuilder.setContainer(getDockerContainerInfo(dockerContainer, Optional.empty()))
-              .setCommand(CommandInfo.newBuilder().setShell(false));
         }
       } else {
         throw new SchedulerException("Task had no supported container set.");
@@ -274,24 +275,60 @@ public interface MesosTaskFactory {
       return Optional.empty();
     }
 
-    private ContainerInfo getDockerContainerInfo(
-        IDockerContainer config,
-        Optional<String> executorName) {
+    private Iterable<Protos.Parameter> templateDockerParameters(
+            Iterable<IDockerParameter> parameters,
+            Optional<IAssignedTask> task) {
+      return Iterables.transform(parameters,
+          item -> {
+            // Templates the Mesos instance ID if the user has requested it.
+            if (task.isPresent()) {
+              String templatedKey = item.getName().replace(
+                  "{{mesos.instance}}", Integer.toString(task.get().getInstanceId()));
+              String templatedValue = item.getValue().replace(
+                  "{{mesos.instance}}", Integer.toString(task.get().getInstanceId()));
+              return Protos.Parameter.newBuilder().setKey(templatedKey)
+                  .setValue(templatedValue).build();
+            } else {
+              return Protos.Parameter.newBuilder().setKey(item.getName())
+                  .setValue(item.getValue()).build();
+            }
+          });
+    }
 
-      Iterable<Protos.Parameter> parameters = Iterables.transform(config.getParameters(),
-          item -> Protos.Parameter.newBuilder().setKey(item.getName())
-            .setValue(item.getValue()).build());
+    private ContainerInfo getDockerContainerInfo(
+            IDockerContainer config,
+            Optional<String> executorName,
+            Optional<IAssignedTask> task) {
+
+      LOG.debug("Getting Docker container info: %s, %s", config, task);
 
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
-          .setImage(config.getImage()).addAllParameters(parameters);
-      return ContainerInfo.newBuilder()
+          .setImage(config.getImage())
+          .setForcePullImage(config.isForcePullImage())
+          .addAllParameters(templateDockerParameters(config.getParameters(), task));
+
+      if (config.isSetNetwork()) {
+        ContainerInfo.DockerInfo.Network network = ContainerInfo.DockerInfo.Network.valueOf(
+            config.getNetwork().name());
+        dockerBuilder.setNetwork(network);
+      }
+
+      ContainerInfo.Builder containerBuilder = ContainerInfo.newBuilder()
           .setType(ContainerInfo.Type.DOCKER)
           .setDocker(dockerBuilder.build())
           .addAllVolumes(
               executorName.isPresent()
                   ? executorSettings.getExecutorConfig(executorName.get()).get().getVolumeMounts()
-                  : ImmutableList.of())
-          .build();
+                  : ImmutableList.of());
+
+      // If we're using a user-defined Docker network, creates a new NetworkInfo to pass this context
+      // along to Mesos.
+      if (config.getNetwork() == DockerNetwork.USER && config.isSetUserNetwork()) {
+        NetworkInfo.Builder networkInfoBuilder = NetworkInfo.newBuilder()
+            .setName(config.getUserNetwork());
+        containerBuilder.addNetworkInfos(networkInfoBuilder.build());
+      }
+      return containerBuilder.build();
     }
 
     @SuppressWarnings("deprecation") // we set the source field for backwards compat.

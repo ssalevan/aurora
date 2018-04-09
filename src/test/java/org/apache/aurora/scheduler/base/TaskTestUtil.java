@@ -21,9 +21,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.aurora.gen.AssignedTask;
-import org.apache.aurora.gen.Constraint;
-import org.apache.aurora.gen.Container;
+import org.apache.aurora.gen.*;
 import org.apache.aurora.gen.Container._Fields;
 import org.apache.aurora.gen.DockerContainer;
 import org.apache.aurora.gen.DockerParameter;
@@ -140,7 +138,12 @@ public final class TaskTestUtil {
             EXECUTOR_INFO.getName(),
             "config"))
         .setContainer(Container.docker(
-            new DockerContainer("imagename")
+            new DockerContainer()
+                .setImage("imagename")
+                .setForcePullImage(true)
+                .setNetwork(DockerNetwork.HOST)
+                .setUserNetwork("usernetwork")
+                .setCommand("/bin/bash")
                 .setParameters(ImmutableList.of(
                     new DockerParameter("a", "b"),
                     new DockerParameter("c", "d")))))
