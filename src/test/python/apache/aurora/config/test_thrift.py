@@ -26,6 +26,7 @@ from apache.aurora.config.schema.base import (
     Docker,
     DockerImage,
     ExecutorConfig,
+    FetcherURI,
     HealthCheckConfig,
     Job,
     Mesos,
@@ -43,8 +44,10 @@ from gen.apache.aurora.api.constants import AURORA_EXECUTOR_NAME, GOOD_IDENTIFIE
 from gen.apache.aurora.api.ttypes import Mode as ThriftMode
 from gen.apache.aurora.api.ttypes import (
     CronCollisionPolicy,
+    DockerNetwork,
     Identity,
     JobKey,
+    MesosFetcherURI,
     PartitionPolicy,
     Resource
 )
@@ -128,6 +131,7 @@ HELLO_WORLD_EXECUTOR_DATA = {
       "shutdown_endpoint": "/abortabortabort"
     }
   },
+  "fetcher_uris": [],
   "priority": 0
 }
 
@@ -214,6 +218,47 @@ def test_docker_with_parameters():
   )
   job = convert_pystachio_to_thrift(helloworld)
   assert job.taskConfig.container.docker.image == 'test_image'
+
+
+def test_docker_with_user_network():
+  helloworld = HELLO_WORLD(
+    container=Container(
+      docker=Docker(
+        image='test_image',
+        network='USER',
+        user_network='usernetwork')
+    )
+  )
+  job = convert_pystachio_to_thrift(helloworld)
+  assert job.taskConfig.container.docker.image == 'test_image'
+  assert job.taskConfig.container.docker.network == DockerNetwork.USER
+  assert job.taskConfig.container.docker.userNetwork == 'usernetwork'
+
+
+def test_docker_with_command():
+  helloworld = HELLO_WORLD(
+    container=Container(
+      docker=Docker(
+        image='test_image',
+        command='/bin/bash')
+      )
+    )
+  job = convert_pystachio_to_thrift(helloworld)
+  assert job.taskConfig.container.docker.image == 'test_image'
+  assert job.taskConfig.container.docker.command == '/bin/bash'
+
+
+def test_docker_with_force_pull_image():
+  helloworld = HELLO_WORLD(
+    container=Container(
+      docker=Docker(
+        image='test_image',
+        force_pull_image=True)
+    )
+  )
+  job = convert_pystachio_to_thrift(helloworld)
+  assert job.taskConfig.container.docker.image == 'test_image'
+  assert job.taskConfig.container.docker.forcePullImage
 
 
 def test_config_with_options():
@@ -423,3 +468,20 @@ def test_mesos_hostname_in_task():
   hw = HELLO_WORLD(task=Task(name="{{mesos.hostname}}"))
   instance = task_instance_from_job(hw, 0, 'test_host')
   assert str(instance.task().name()) == 'test_host'
+
+
+def test_mesos_fetcher_uris():
+  job = convert_pystachio_to_thrift(
+      HELLO_WORLD(fetcher_uris=[
+        FetcherURI(
+          value='https://localhost/docker.tar.gz',
+          extract=True,
+          cache=False,
+        )
+      ]))
+  assert len(job.taskConfig.mesosFetcherUris) == 1
+  assert job.taskConfig.mesosFetcherUris[0] == MesosFetcherURI(
+    value='https://localhost/docker.tar.gz',
+    extract=True,
+    cache=False,
+  )
