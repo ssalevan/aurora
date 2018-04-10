@@ -28,6 +28,7 @@ import org.apache.aurora.gen.AssignedTask;
 import org.apache.aurora.gen.Container;
 import org.apache.aurora.gen.DockerContainer;
 import org.apache.aurora.gen.DockerImage;
+import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.gen.DockerParameter;
 import org.apache.aurora.gen.Image;
 import org.apache.aurora.gen.MesosContainer;
@@ -98,17 +99,44 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
           new TaskConfig(TASK.getTask().newBuilder())
               .setContainer(Container.docker(
                   new DockerContainer("testimage")))));
-  private static final IAssignedTask TASK_WITH_DOCKER_PARAMS = IAssignedTask.build(TASK.newBuilder()
+  private static final IAssignedTask TASK_WITH_DOCKER_COMMAND = IAssignedTask.build(
+      TASK.newBuilder()
+      .setTask(
+          new TaskConfig(TASK.getTask().newBuilder())
+              .setContainer(Container.docker(
+                  new DockerContainer("testimage").setCommand("/bin/bash")))));
+  private static final IAssignedTask TASK_WITH_DOCKER_FORCE_PULL = IAssignedTask.build(
+      TASK.newBuilder()
+      .setTask(
+          new TaskConfig(TASK.getTask().newBuilder())
+              .setContainer(Container.docker(
+                  new DockerContainer("testimage").setForcePullImage(true)))));
+  private static final IAssignedTask TASK_WITH_DOCKER_PARAMS = IAssignedTask.build(
+      TASK.newBuilder()
       .setTask(
           new TaskConfig(TASK.getTask().newBuilder())
               .setContainer(Container.docker(
                   new DockerContainer("testimage").setParameters(
                       ImmutableList.of(new DockerParameter("label", "testparameter")))))));
-  private static final IAssignedTask TASK_WITH_DOCKER_FORCE_PULL = IAssignedTask.build(TASK.newBuilder()
+  private static final IAssignedTask TASK_WITH_DOCKER_TEMPLATED_PARAMS = IAssignedTask.build(
+      TASK.newBuilder()
+      .setInstanceId(1234)
       .setTask(
           new TaskConfig(TASK.getTask().newBuilder())
               .setContainer(Container.docker(
-                  new DockerContainer("testimage").setForcePullImage(true)))));
+                  new DockerContainer("testimage").setParameters(
+                      ImmutableList.of(
+                          new DockerParameter("instance-{{mesos.instance}}", "test"),
+                          new DockerParameter("instance", "{{mesos.instance}}")))))));
+  private static final IAssignedTask TASK_WITH_DOCKER_USER_NETWORK = IAssignedTask.build(
+      TASK.newBuilder()
+      .setTask(
+          new TaskConfig(TASK.getTask().newBuilder())
+              .setContainer(Container.docker(
+                  new DockerContainer("testimage")
+                      .setForcePullImage(true)
+                      .setNetwork(DockerNetwork.USER)
+                      .setUserNetwork("usernetwork")))));
 
   private static final ExecutorSettings EXECUTOR_SETTINGS_WITH_VOLUMES = new ExecutorSettings(
       ImmutableMap.<String, ExecutorConfig>builder().
@@ -333,21 +361,53 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
     DockerInfo docker = getDockerTaskInfo().getExecutor().getContainer().getDocker();
     assertEquals("testimage", docker.getImage());
     assertTrue(docker.getParametersList().isEmpty());
+    assertEquals(docker.getNetwork(), DockerInfo.Network.HOST);
+    assertFalse(docker.getForcePullImage());
   }
 
   @Test
   public void testDockerContainerWithParameters() {
     DockerInfo docker = getDockerTaskInfo(TASK_WITH_DOCKER_PARAMS).getExecutor().getContainer()
             .getDocker();
-    Parameter parameters = Parameter.newBuilder().setKey("label").setValue("testparameter").build();
+    Parameter parameters = Parameter.newBuilder()
+        .setKey("label").setValue("testparameter").build();
     assertEquals(ImmutableList.of(parameters), docker.getParametersList());
   }
 
   @Test
+  public void testDockerContainerWithTemplatedParameters() {
+    DockerInfo docker = getDockerTaskInfo(TASK_WITH_DOCKER_TEMPLATED_PARAMS)
+        .getExecutor().getContainer().getDocker();
+    Parameter parameter0 = Parameter.newBuilder()
+        .setKey("instance-1234").setValue("test").build();
+    Parameter parameter1 = Parameter.newBuilder()
+        .setKey("instance").setValue("1234").build();
+    assertEquals(ImmutableList.of(parameter0, parameter1), docker.getParametersList());
+  }
+
+  @Test
   public void testDockerContainerWithForcePull() {
-    DockerInfo docker = getDockerTaskInfo(TASK_WITH_DOCKER_FORCE_PULL).getExecutor().getContainer()
-            .getDocker();
+    DockerInfo docker = getDockerTaskInfo(TASK_WITH_DOCKER_FORCE_PULL)
+        .getExecutor().getContainer().getDocker();
     assertTrue(docker.getForcePullImage());
+  }
+
+  @Test
+  public void testDockerContainerWithCommand() {
+    TaskInfo taskInfo = getDockerTaskInfo(TASK_WITH_DOCKER_COMMAND);
+    assertTrue(taskInfo.getCommand().getShell());
+    assertEquals(taskInfo.getCommand().getValue(), "/bin/bash");
+  }
+
+  @Test
+  public void testDockerContainerWithUserNetwork() {
+    ContainerInfo container = getDockerTaskInfo(TASK_WITH_DOCKER_USER_NETWORK)
+        .getExecutor().getContainer();
+    DockerInfo docker = container.getDocker();
+    assertTrue(docker.hasNetwork());
+    assertEquals(docker.getNetwork(), DockerInfo.Network.USER);
+    assertEquals(container.getNetworkInfosCount(), 1);
+    assertEquals(container.getNetworkInfosList().get(0).getName(), "usernetwork");
   }
 
   @Test
@@ -432,6 +492,29 @@ public class MesosTaskFactoryImplTest extends EasyMockTest {
 
     assertTrue(task.getLabels().getLabelsList().stream().anyMatch(
         l -> l.getKey().equals(TIER_LABEL) && l.getValue().equals(PROD_TIER_NAME)));
+  }
+
+  @Test
+  public void testDockerTaskWithoutExecutor() {
+    AssignedTask builder = TASK.newBuilder();
+    builder.getTask()
+        .setContainer(Container.docker(new DockerContainer()
+            .setImage("hello-world")
+            .setForcePullImage(true)))
+        .unsetExecutorConfig();
+
+    TaskInfo task = getDockerTaskInfo(IAssignedTask.build(builder));
+    assertTrue(task.hasCommand());
+    assertFalse(task.getCommand().getShell());
+    assertFalse(task.hasData());
+    ContainerInfo expectedContainer = ContainerInfo.newBuilder()
+        .setType(Type.DOCKER)
+        .setDocker(DockerInfo.newBuilder()
+            .setImage("hello-world")
+            .setForcePullImage(true))
+        .build();
+    assertEquals(expectedContainer, task.getContainer());
+    checkDiscoveryInfoUnset(task);
   }
 
   @Test

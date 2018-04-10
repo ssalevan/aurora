@@ -21,9 +21,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.aurora.gen.*;
+import org.apache.aurora.gen.AssignedTask;
+import org.apache.aurora.gen.Constraint;
+import org.apache.aurora.gen.Container;
 import org.apache.aurora.gen.Container._Fields;
 import org.apache.aurora.gen.DockerContainer;
+import org.apache.aurora.gen.DockerNetwork;
 import org.apache.aurora.gen.DockerParameter;
 import org.apache.aurora.gen.Identity;
 import org.apache.aurora.gen.LimitConstraint;

@@ -38,8 +38,8 @@ import org.apache.aurora.scheduler.resources.ResourceManager;
 import org.apache.aurora.scheduler.storage.entities.IAppcImage;
 import org.apache.aurora.scheduler.storage.entities.IAssignedTask;
 import org.apache.aurora.scheduler.storage.entities.IDockerContainer;
-import org.apache.aurora.scheduler.storage.entities.IDockerParameter;
 import org.apache.aurora.scheduler.storage.entities.IDockerImage;
+import org.apache.aurora.scheduler.storage.entities.IDockerParameter;
 import org.apache.aurora.scheduler.storage.entities.IImage;
 import org.apache.aurora.scheduler.storage.entities.IJobKey;
 import org.apache.aurora.scheduler.storage.entities.IMesosContainer;
@@ -209,6 +209,12 @@ public interface MesosTaskFactory {
                   Optional.of(getExecutorName(task)),
                   Optional.of(task)));
           taskBuilder.setExecutor(execBuilder.build());
+        } else {
+          LOG.warn("Running Docker-based task without an executor.");
+          taskBuilder
+              .setContainer(
+                  getDockerContainerInfo(dockerContainer, Optional.empty(), Optional.of(task)))
+              .setCommand(CommandInfo.newBuilder().setShell(false));
         }
 
         // Sets a Docker command override if one is specified on the DockerContainer.
@@ -308,9 +314,6 @@ public interface MesosTaskFactory {
             IDockerContainer config,
             Optional<String> executorName,
             Optional<IAssignedTask> task) {
-
-      LOG.debug("Getting Docker container info: %s, %s", config, task);
-
       ContainerInfo.DockerInfo.Builder dockerBuilder = ContainerInfo.DockerInfo.newBuilder()
           .setImage(config.getImage())
           .setForcePullImage(config.isForcePullImage())
@@ -332,7 +335,9 @@ public interface MesosTaskFactory {
 
       // If we're using a user-defined Docker network, creates a new NetworkInfo to pass
       // this context along to Docker.
-      if (config.isSetNetwork() && config.getNetwork() == DockerNetwork.USER && config.isSetUserNetwork()) {
+      if (config.isSetNetwork()
+          && config.getNetwork() == DockerNetwork.USER
+          && config.isSetUserNetwork()) {
         NetworkInfo.Builder networkInfoBuilder = NetworkInfo.newBuilder()
             .setName(config.getUserNetwork());
         containerBuilder.addNetworkInfos(networkInfoBuilder.build());
